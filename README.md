@@ -224,6 +224,25 @@ The tool automatically detects:
 </details>
 
 <details>
+<summary><strong>Database Issues</strong></summary>
+
+- High connection count (SQL Server/MySQL/PostgreSQL/Oracle: >500, MongoDB/Cassandra: >1000, Redis: >10,000)
+- High connection churn (>1,000 TIME_WAIT connections on database ports)
+- Excessive resource usage by database processes
+
+**Supported Databases:**
+- SQL Server
+- MySQL / MariaDB
+- PostgreSQL
+- MongoDB
+- Redis
+- Cassandra
+- Oracle Database
+- Elasticsearch
+
+</details>
+
+<details>
 <summary><strong>Network Issues</strong></summary>
 
 - High TCP retransmissions (>10/sec)
