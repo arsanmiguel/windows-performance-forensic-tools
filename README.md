@@ -114,6 +114,40 @@ Original disk I/O testing tool (requires SQLIO.exe).
 
 ---
 
+## 📖 **Examples**
+
+<details>
+<summary><strong>Example 1: Quick Health Check</strong></summary>
+
+```powershell
+.\Invoke-WindowsForensics.ps1 -Mode Quick
+```
+Output: 3-minute assessment with automatic bottleneck detection
+
+</details>
+
+<details>
+<summary><strong>Example 2: Production Issue with Auto-Ticket</strong></summary>
+
+```powershell
+.\Invoke-WindowsForensics.ps1 -Mode Deep -CreateSupportCase -Severity urgent
+```
+Output: Comprehensive diagnostics + AWS Support case with all data attached
+
+</details>
+
+<details>
+<summary><strong>Example 3: Disk Performance Testing</strong></summary>
+
+```powershell
+.\Invoke-WindowsForensics.ps1 -Mode DiskOnly -DiskTestSize 10
+```
+Output: Detailed disk I/O testing with 10GB test file
+
+</details>
+
+---
+
 ## 🎯 **Use Cases**
 
 ### **AWS DMS Migrations**
@@ -215,40 +249,6 @@ aws support describe-services
   ]
 }
 ```
-
----
-
-## 📖 **Examples**
-
-<details>
-<summary><strong>Example 1: Quick Health Check</strong></summary>
-
-```powershell
-.\Invoke-WindowsForensics.ps1 -Mode Quick
-```
-Output: 3-minute assessment with automatic bottleneck detection
-
-</details>
-
-<details>
-<summary><strong>Example 2: Production Issue with Auto-Ticket</strong></summary>
-
-```powershell
-.\Invoke-WindowsForensics.ps1 -Mode Deep -CreateSupportCase -Severity urgent
-```
-Output: Comprehensive diagnostics + AWS Support case with all data attached
-
-</details>
-
-<details>
-<summary><strong>Example 3: Disk Performance Testing</strong></summary>
-
-```powershell
-.\Invoke-WindowsForensics.ps1 -Mode DiskOnly -DiskTestSize 10
-```
-Output: Detailed disk I/O testing with 10GB test file
-
-</details>
 
 ---
 
