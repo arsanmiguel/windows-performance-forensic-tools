@@ -1,4 +1,4 @@
-# PowerShell Utilities for Windows Performance Diagnostics
+# Windows Performance Forensic Tools
 
 ## Overview
 
@@ -27,8 +27,8 @@ A collection of PowerShell utilities designed to help system administrators, DBA
 
 1. **Clone the repository:**
 ```powershell
-git clone https://github.com/arsanmiguel/ps_utilities.git
-cd ps_utilities
+git clone https://github.com/arsanmiguel/windows-performance-forensic-tools.git
+cd windows-performance-forensic-tools
 ```
 
 2. **Set execution policy (if needed):**
