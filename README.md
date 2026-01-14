@@ -10,17 +10,7 @@ A collection of PowerShell utilities designed to help system administrators, DBA
 - ✅ Disk I/O performance testing (no external tools required)
 - ✅ CPU forensics (thread analysis, throttling detection)
 - ✅ Memory forensics (leak detection, page file analysis)
-- ✅ **Database forensics** (SQL Server, MySQL, PostgreSQL, MongoDB, Redis, Cassandra, Oracle, Elasticsearch)
-  <details>
-  <summary>DBA-level query analysis capabilities</summary>
-  
-  - Top 5 queries by CPU/time, long-running queries (>30s), blocking detection
-  - **SQL Server/MySQL/PostgreSQL**: DMV/performance schema queries, active sessions, wait states
-  - **MongoDB**: currentOp() and profiler analysis for slow operations
-  - **Redis**: SLOWLOG, ops/sec metrics, connection rejection tracking
-  - **Oracle**: v$session and v$sql analysis, blocking session detection
-  - **Elasticsearch**: Tasks API for long-running searches, thread pool monitoring
-  </details>
+- ✅ **Database forensics** - DBA-level query analysis capabilities
 - ✅ **Automatic AWS Support case creation** with diagnostic data
 - ✅ Works across all hyperscalers and on-premises
 
@@ -246,6 +236,12 @@ The tool automatically detects:
 - High connection count (SQL Server/MySQL/PostgreSQL/Oracle: >500, MongoDB/Cassandra: >1000, Redis: >10,000)
 - High connection churn (>1,000 TIME_WAIT connections on database ports)
 - Excessive resource usage by database processes
+- Top 5 queries by CPU/time, long-running queries (>30s), blocking detection
+- **SQL Server/MySQL/PostgreSQL**: DMV/performance schema queries, active sessions, wait states
+- **MongoDB**: currentOp() and profiler analysis for slow operations
+- **Redis**: SLOWLOG, ops/sec metrics, connection rejection tracking
+- **Oracle**: v$session and v$sql analysis, blocking session detection
+- **Elasticsearch**: Tasks API for long-running searches, thread pool monitoring
 
 **Supported Databases:**
 - SQL Server
