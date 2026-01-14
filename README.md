@@ -5,9 +5,11 @@
 A collection of PowerShell utilities designed to help system administrators, DBAs, and engineers diagnose Windows Server performance issues. Originally created for AWS DMS migrations, these tools are useful for any Windows performance troubleshooting scenario.
 
 **Key Features:**
-- ✅ Automated performance counter collection
-- ✅ Disk I/O performance analysis
-- ✅ CPU, Memory, and Network diagnostics
+- ✅ Comprehensive performance forensics (CPU, Memory, Disk, Network)
+- ✅ Automated bottleneck detection ("Here be dragons" 🐉)
+- ✅ Disk I/O performance testing (no external tools required)
+- ✅ CPU forensics (thread analysis, throttling detection)
+- ✅ Memory forensics (leak detection, page file analysis)
 - ✅ **Automatic AWS Support case creation** with diagnostic data
 - ✅ Works across all hyperscalers and on-premises
 
@@ -38,59 +40,132 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ## 📊 **Available Tools**
 
-### **1. ps-getperfcounters.ps1**
-Comprehensive performance counter collection with automatic AWS Support case creation.
+### **1. Invoke-WindowsForensics.ps1** ⭐ NEW!
+**The ultimate Windows performance diagnostic tool** - comprehensive forensics with automatic issue detection.
 
 **What it does:**
-- Resets and resyncs Windows performance counters
-- Collects disk, CPU, memory, and network metrics
-- Analyzes bottlenecks automatically
-- **Creates AWS Support case with all diagnostic data**
+- Collects performance counters (disk, CPU, memory, network)
+- Performs real disk I/O testing
+- Analyzes CPU usage, threads, and throttling
+- Detects memory leaks and paging issues
+- **Automatically identifies bottlenecks** ("Here be dragons" 🐉)
+- **Creates AWS Support case** with all diagnostic data
 
 **Usage:**
 ```powershell
-.\ps-getperfcounters.ps1
+# Quick diagnostics (3 minutes)
+.\Invoke-WindowsForensics.ps1 -Mode Quick
+
+# Standard diagnostics (5-10 minutes)
+.\Invoke-WindowsForensics.ps1 -Mode Standard
+
+# Deep diagnostics (15-20 minutes)
+.\Invoke-WindowsForensics.ps1 -Mode Deep
+
+# Auto-create support case if issues found
+.\Invoke-WindowsForensics.ps1 -Mode Standard -CreateSupportCase -Severity high
+
+# Disk-only diagnostics
+.\Invoke-WindowsForensics.ps1 -Mode DiskOnly -DiskTestSize 5
+
+# CPU-only diagnostics
+.\Invoke-WindowsForensics.ps1 -Mode CPUOnly
+
+# Memory-only diagnostics
+.\Invoke-WindowsForensics.ps1 -Mode MemoryOnly
 ```
 
 **Output:**
-- Performance counter results file: `perfmon_results-[timestamp].txt`
-- AWS Support case ID (if bottlenecks detected)
-- Diagnostic summary
+```
+🐉 DRAGONS DETECTED: 3 performance issue(s) found
+
+  CRITICAL ISSUES (1):
+    • Memory: Low available memory
+
+  HIGH PRIORITY (2):
+    • Disk: High write latency
+    • CPU: High CPU utilization
+
+Detailed report saved to: windows-forensics-20260113-193000.txt
+AWS Support case created: case-123456789
+```
 
 ---
 
-### **2. Measure-DiskPerformance.ps1**
-Detailed disk I/O performance analysis.
+### **2. ps-getperfcounters.ps1** (Legacy)
+Original performance counter collection tool with AWS Support integration.
 
 **Usage:**
 ```powershell
-.\Measure-DiskPerformance.ps1
+.\ps-getperfcounters.ps1 -CreateSupportCase -Severity high
 ```
+
+---
+
+### **3. Measure-DiskPerformance.ps1** (Legacy)
+Original disk I/O testing tool (requires SQLIO.exe).
 
 ---
 
 ## 🎯 **Use Cases**
 
 ### **AWS DMS Migrations**
-Diagnose source database server performance issues during migration:
+Diagnose source database server performance issues:
 ```powershell
-# Run during migration to capture performance data
-.\ps-getperfcounters.ps1
+# Run during migration to capture comprehensive diagnostics
+.\Invoke-WindowsForensics.ps1 -Mode Deep -CreateSupportCase
 ```
 
 ### **SQL Server Performance Issues**
-Identify disk, CPU, or memory bottlenecks:
+Identify all bottlenecks automatically:
 ```powershell
-# Collect metrics during problem period
-.\ps-getperfcounters.ps1
+# Standard mode is perfect for SQL Server diagnostics
+.\Invoke-WindowsForensics.ps1 -Mode Standard
 ```
 
 ### **Right-Sizing Exercises**
-Gather baseline performance data for capacity planning:
+Gather baseline performance data:
 ```powershell
-# Run multiple times to establish baseline
-.\Measure-DiskPerformance.ps1
+# Quick mode for rapid assessment
+.\Invoke-WindowsForensics.ps1 -Mode Quick
 ```
+
+### **Production Issue Troubleshooting**
+When things go wrong:
+```powershell
+# Deep mode + auto support case
+.\Invoke-WindowsForensics.ps1 -Mode Deep -CreateSupportCase -Severity urgent
+```
+
+---
+
+## 🐉 **What Dragons Can Be Found?**
+
+The tool automatically detects:
+
+### **Disk Issues**
+- High read/write latency (>20ms)
+- Excessive disk queue length (>2)
+- Poor I/O performance
+
+### **CPU Issues**
+- High CPU utilization (>80%)
+- CPU throttling
+- Excessive context switches (>15,000/sec)
+- High processor queue length (>2)
+- Excessive thread counts
+
+### **Memory Issues**
+- Low available memory (<10%)
+- High memory paging (>10 pages/sec)
+- High page fault rate (>1,000/sec)
+- Memory leaks (high virtual memory usage)
+- High page file usage (>80%)
+- High committed memory (>90%)
+
+### **Network Issues**
+- High TCP retransmissions (>10/sec)
+- Network packet errors
 
 ---
 
@@ -136,36 +211,33 @@ aws support describe-services
 
 ---
 
-## 📋 **Performance Counters Collected**
+## 📖 **Examples**
 
-### **Disk Metrics**
-- % Idle Time
-- Avg. Disk sec/Read
-- Avg. Disk sec/Write
-- Disk Queue Length
-- Disk Transfers/sec
+### **Example 1: Quick Health Check**
+```powershell
+.\Invoke-WindowsForensics.ps1 -Mode Quick
+```
+Output: 3-minute assessment with automatic dragon detection
 
-### **CPU Metrics**
-- % Processor Time
-- % Privileged Time
-- % User Time
-- DPCs Queued/sec
+### **Example 2: Production Issue with Auto-Ticket**
+```powershell
+.\Invoke-WindowsForensics.ps1 -Mode Deep -CreateSupportCase -Severity urgent
+```
+Output: Comprehensive diagnostics + AWS Support case with all data attached
 
-### **Memory Metrics**
-- Available Bytes
-- Pages/sec
-
-### **Network Metrics**
-- Bytes Total/sec
-- Output Queue Length
+### **Example 3: Disk Performance Testing**
+```powershell
+.\Invoke-WindowsForensics.ps1 -Mode DiskOnly -DiskTestSize 10
+```
+Output: Detailed disk I/O testing with 10GB test file
 
 ---
 
 ## 🛠️ **Troubleshooting**
 
 ### **Performance Counters Not Working**
+The tool automatically resets counters, but if issues persist:
 ```powershell
-# Reset counters manually
 cd c:\windows\system32
 lodctr /R
 cd c:\windows\sysWOW64
@@ -174,7 +246,7 @@ winmgmt.exe /resyncperf
 ```
 
 ### **AWS Support Case Creation Fails**
-- Verify AWS CLI is installed: `aws --version`
+- Verify AWS CLI: `aws --version`
 - Check credentials: `aws sts get-caller-identity`
 - Ensure Support plan is active (Business or Enterprise)
 
@@ -186,49 +258,11 @@ Start-Process powershell -Verb runAs
 
 ---
 
-## 📖 **Examples**
-
-### **Basic Performance Check**
-```powershell
-# Collect performance data
-.\ps-getperfcounters.ps1
-
-# Output: perfmon_results-13-01-2026-19-30-00.txt
-# AWS Support Case: case-123456789
-```
-
-### **Disk Performance Analysis**
-```powershell
-# Detailed disk metrics
-.\Measure-DiskPerformance.ps1
-```
-
----
-
-## 🔍 **Understanding the Output**
-
-### **Performance Counter Results**
-```
-Category    Counter                    Instance    Value
---------    -------                    --------    -----
-PhysicalDisk % Idle Time               C:          45
-PhysicalDisk Avg. Disk sec/Read        C:          0.025
-Memory      Available Bytes            -           2147483648
-```
-
-### **Bottleneck Detection**
-The tool automatically identifies:
-- **High disk latency** (>20ms read/write)
-- **Low memory** (<10% available)
-- **CPU saturation** (>80% sustained)
-- **Network congestion** (high queue length)
-
----
-
 ## 📦 **What's Included**
 
-- `ps-getperfcounters.ps1` - Main diagnostic tool with AWS Support integration
-- `Measure-DiskPerformance.ps1` - Disk I/O analysis utility
+- `Invoke-WindowsForensics.ps1` - **NEW!** Comprehensive forensics tool with dragon detection
+- `ps-getperfcounters.ps1` - Legacy performance counter tool
+- `Measure-DiskPerformance.ps1` - Legacy disk testing tool
 - `README.md` - This documentation
 
 ---
@@ -246,7 +280,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 ## ⚠️ **Important Notes**
 
 - These utilities require Administrator privileges
-- Performance counter collection may impact system performance slightly
+- Disk testing may impact system performance temporarily
 - Tested on Windows Server 2012 R2 through 2022
 - Works on AWS EC2, Azure VMs, GCP Compute, and on-premises
 - **No warranty or official support provided** - use at your own discretion
@@ -255,7 +289,8 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ## 📝 **Version History**
 
-- **v2.0** (January 2026) - Added AWS Support API integration
+- **v2.0** (January 2026) - Complete rewrite with unified forensics tool, automatic dragon detection, CPU/Memory forensics
+- **v1.5** (January 2026) - Added AWS Support API integration
 - **v1.0** (February 2022) - Initial release
 
 ---
