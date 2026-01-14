@@ -40,7 +40,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ## 📊 **Available Tools**
 
-### **1. Invoke-WindowsForensics.ps1** (NEW)
+### **Invoke-WindowsForensics.ps1** (NEW)
 **A complete Windows performance diagnostic tool** - comprehensive forensics with automatic issue detection.
 
 <details>
