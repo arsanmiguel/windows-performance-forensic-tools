@@ -12,8 +12,11 @@ A collection of PowerShell utilities designed to help system administrators, DBA
 - ✅ Memory forensics (leak detection, page file analysis)
 - ✅ **Database forensics** (SQL Server, MySQL, PostgreSQL, MongoDB, Redis, Cassandra, Oracle, Elasticsearch)
   - **DBA-level query analysis**: Top 5 queries by CPU/time, long-running queries (>30s), blocking detection
-  - **Resource consumption**: Per-query CPU time, execution count, rows examined
-  - **Active query monitoring**: Currently executing queries with wait states and duration
+  - **SQL Server/MySQL/PostgreSQL**: DMV/performance schema queries, active sessions, wait states
+  - **MongoDB**: currentOp() and profiler analysis for slow operations
+  - **Redis**: SLOWLOG, ops/sec metrics, connection rejection tracking
+  - **Oracle**: v$session and v$sql analysis, blocking session detection
+  - **Elasticsearch**: Tasks API for long-running searches, thread pool monitoring
 - ✅ **Automatic AWS Support case creation** with diagnostic data
 - ✅ Works across all hyperscalers and on-premises
 
@@ -55,10 +58,12 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 - Analyzes CPU usage, threads, and throttling
 - Detects memory leaks and paging issues
 - **Detects and analyzes database bottlenecks** (SQL Server, MySQL, PostgreSQL, MongoDB, Redis, Cassandra, Oracle, Elasticsearch)
-  - Top 5 queries by CPU time and resource consumption
-  - Long-running queries (>30 seconds)
-  - Blocking and wait state analysis
-  - Connection pool exhaustion detection
+  - Top 5 queries by CPU time and resource consumption (all platforms)
+  - Long-running queries/operations (>30 seconds)
+  - Blocking and wait state analysis (SQL Server, Oracle)
+  - Connection pool exhaustion and rejection tracking (all platforms)
+  - Thread pool monitoring (Elasticsearch)
+  - Slow operation profiling (MongoDB, Redis)
 - **Automatically identifies bottlenecks**
 - **Creates AWS Support case** with all diagnostic data
 
