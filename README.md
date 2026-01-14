@@ -55,7 +55,9 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 </details>
 
-**Usage:**
+<details>
+<summary><strong>Usage</strong></summary>
+
 ```powershell
 # Quick diagnostics (3 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode Quick
@@ -79,7 +81,11 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .\Invoke-WindowsForensics.ps1 -Mode MemoryOnly
 ```
 
-**Output:**
+</details>
+
+<details>
+<summary><strong>Output Example</strong></summary>
+
 ```
 BOTTLENECKS DETECTED: 3 performance issue(s) found
 
@@ -93,6 +99,8 @@ BOTTLENECKS DETECTED: 3 performance issue(s) found
 Detailed report saved to: windows-forensics-20260113-193000.txt
 AWS Support case created: case-123456789
 ```
+
+</details>
 
 ---
 
@@ -150,33 +158,49 @@ Output: Detailed disk I/O testing with 10GB test file
 
 ## 🎯 **Use Cases**
 
-### **AWS DMS Migrations**
+<details>
+<summary><strong>AWS DMS Migrations</strong></summary>
+
 Diagnose source database server performance issues:
 ```powershell
 # Run during migration to capture comprehensive diagnostics
 .\Invoke-WindowsForensics.ps1 -Mode Deep -CreateSupportCase
 ```
 
-### **SQL Server Performance Issues**
+</details>
+
+<details>
+<summary><strong>SQL Server Performance Issues</strong></summary>
+
 Identify all bottlenecks automatically:
 ```powershell
 # Standard mode is perfect for SQL Server diagnostics
 .\Invoke-WindowsForensics.ps1 -Mode Standard
 ```
 
-### **Right-Sizing Exercises**
+</details>
+
+<details>
+<summary><strong>Right-Sizing Exercises</strong></summary>
+
 Gather baseline performance data:
 ```powershell
 # Quick mode for rapid assessment
 .\Invoke-WindowsForensics.ps1 -Mode Quick
 ```
 
-### **Production Issue Troubleshooting**
+</details>
+
+<details>
+<summary><strong>Production Issue Troubleshooting</strong></summary>
+
 When things go wrong:
 ```powershell
 # Deep mode + auto support case
 .\Invoke-WindowsForensics.ps1 -Mode Deep -CreateSupportCase -Severity urgent
 ```
+
+</details>
 
 ---
 
@@ -184,19 +208,29 @@ When things go wrong:
 
 The tool automatically detects:
 
-### **Disk Issues**
+<details>
+<summary><strong>Disk Issues</strong></summary>
+
 - High read/write latency (>20ms)
 - Excessive disk queue length (>2)
 - Poor I/O performance
 
-### **CPU Issues**
+</details>
+
+<details>
+<summary><strong>CPU Issues</strong></summary>
+
 - High CPU utilization (>80%)
 - CPU throttling
 - Excessive context switches (>15,000/sec)
 - High processor queue length (>2)
 - Excessive thread counts
 
-### **Memory Issues**
+</details>
+
+<details>
+<summary><strong>Memory Issues</strong></summary>
+
 - Low available memory (<10%)
 - High memory paging (>10 pages/sec)
 - High page fault rate (>1,000/sec)
@@ -204,9 +238,15 @@ The tool automatically detects:
 - High page file usage (>80%)
 - High committed memory (>90%)
 
-### **Network Issues**
+</details>
+
+<details>
+<summary><strong>Network Issues</strong></summary>
+
 - High TCP retransmissions (>10/sec)
 - Network packet errors
+
+</details>
 
 ---
 
@@ -215,6 +255,9 @@ The tool automatically detects:
 ### **AWS Support Integration**
 
 The tools can automatically create AWS Support cases when performance issues are detected.
+
+<details>
+<summary><strong>Setup Instructions</strong></summary>
 
 **Setup:**
 1. **Install AWS CLI:**
@@ -249,6 +292,8 @@ aws support describe-services
   ]
 }
 ```
+
+</details>
 
 ---
 
