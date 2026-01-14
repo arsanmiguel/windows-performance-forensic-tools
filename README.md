@@ -59,10 +59,39 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
   - Thread pool monitoring (Elasticsearch)
   - Slow operation profiling (MongoDB, Redis)
   - **DMS migration readiness checks** (MySQL, PostgreSQL, Oracle, SQL Server)
-    - MySQL: Binary logging, binlog format, retention
-    - PostgreSQL: WAL level, replication slots
-    - Oracle: ARCHIVELOG mode, supplemental logging, Data Guard lag
-    - SQL Server: Agent status, recovery model, AlwaysOn lag
+    <details>
+    <summary>MySQL</summary>
+    
+    - Binary logging (log_bin=ON)
+    - Binlog format (ROW)
+    - Binary log retention (expire_logs_days >= 1)
+    - Replication lag detection
+    
+    </details>
+    <details>
+    <summary>PostgreSQL</summary>
+    
+    - WAL level (logical)
+    - Replication slots (max_replication_slots >= 1)
+    - Replication lag detection
+    
+    </details>
+    <details>
+    <summary>Oracle</summary>
+    
+    - ARCHIVELOG mode
+    - Supplemental logging
+    - Data Guard apply lag
+    
+    </details>
+    <details>
+    <summary>SQL Server</summary>
+    
+    - SQL Server Agent status
+    - Recovery model (FULL)
+    - AlwaysOn replica lag
+    
+    </details>
 - **Automatically identifies bottlenecks**
 - **Creates AWS Support case** with all diagnostic data
 
