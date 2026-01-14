@@ -5,13 +5,13 @@
 A collection of PowerShell utilities designed to help system administrators, DBAs, and engineers diagnose Windows Server performance issues. Originally created for AWS DMS migrations, these tools are useful for any Windows performance troubleshooting scenario.
 
 **Key Features:**
-- Comprehensive performance forensics (CPU, Memory, Disk, Network)
-- Automated bottleneck detection
-- Disk I/O performance testing (no external tools required)
-- CPU forensics (thread analysis, throttling detection)
-- Memory forensics (leak detection, page file analysis)
-- **Automatic AWS Support case creation** with diagnostic data
-- Works across all hyperscalers and on-premises
+- ✅ Comprehensive performance forensics (CPU, Memory, Disk, Network)
+- ✅ Automated bottleneck detection
+- ✅ Disk I/O performance testing (no external tools required)
+- ✅ CPU forensics (thread analysis, throttling detection)
+- ✅ Memory forensics (leak detection, page file analysis)
+- ✅ **Automatic AWS Support case creation** with diagnostic data
+- ✅ Works across all hyperscalers and on-premises
 
 ---
 
@@ -41,7 +41,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ## 📊 **Available Tools**
 
 ### **1. Invoke-WindowsForensics.ps1** (NEW)
-**The ultimate Windows performance diagnostic tool** - comprehensive forensics with automatic issue detection.
+**A complete Windows performance diagnostic tool** - comprehensive forensics with automatic issue detection.
 
 **What it does:**
 - Collects performance counters (disk, CPU, memory, network)
