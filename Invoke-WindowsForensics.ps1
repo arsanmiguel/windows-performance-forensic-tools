@@ -128,7 +128,7 @@ Function Add-Bottleneck {
         Timestamp = Get-Date
     }
     
-    Write-ForensicsLog "🐉 DRAGON FOUND: $Category - $Issue (Current: $Value, Threshold: $Threshold)" -Level Dragon
+    Write-ForensicsLog "BOTTLENECK FOUND: $Category - $Issue (Current: $Value, Threshold: $Threshold)" -Level Dragon
 }
 
 #endregion
@@ -686,7 +686,7 @@ Function New-AWSSupportCase {
     } | Out-String
     
     $caseDescription = @"
-🐉 AUTOMATED WINDOWS FORENSICS REPORT 🐉
+AUTOMATED WINDOWS FORENSICS REPORT
 
 EXECUTIVE SUMMARY:
 Comprehensive diagnostics detected $($script:Bottlenecks.Count) performance issue(s) requiring attention.
@@ -793,7 +793,7 @@ Function Invoke-Forensics {
     Write-Host "`n" -NoNewline
     Write-Host "╔═══════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║                                                                               ║" -ForegroundColor Cyan
-    Write-Host "║              🐉 WINDOWS PERFORMANCE FORENSICS TOOL v2.0 🐉                   ║" -ForegroundColor Cyan
+    Write-Host "║                WINDOWS PERFORMANCE FORENSICS TOOL v2.0                    ║" -ForegroundColor Cyan
     Write-Host "║                                                                               ║" -ForegroundColor Cyan
     Write-Host "║                    Comprehensive System Diagnostics                           ║" -ForegroundColor Cyan
     Write-Host "║                    with AWS Support Integration                               ║" -ForegroundColor Cyan
@@ -845,11 +845,11 @@ Function Invoke-Forensics {
     Write-ForensicsLog "Analysis completed in $([math]::Round($duration.TotalSeconds, 2)) seconds" -Level Success
     
     if ($script:Bottlenecks.Count -eq 0) {
-        Write-Host "`n✅ " -NoNewline -ForegroundColor Green
-        Write-Host "NO DRAGONS FOUND! System performance looks healthy." -ForegroundColor Green
+        Write-Host "`n" -NoNewline -ForegroundColor Green
+        Write-Host "NO BOTTLENECKS FOUND! System performance looks healthy." -ForegroundColor Green
     } else {
-        Write-Host "`n🐉 " -NoNewline -ForegroundColor Magenta
-        Write-Host "DRAGONS DETECTED: $($script:Bottlenecks.Count) performance issue(s) found" -ForegroundColor Magenta
+        Write-Host "`n" -NoNewline -ForegroundColor Magenta
+        Write-Host "BOTTLENECKS DETECTED: $($script:Bottlenecks.Count) performance issue(s) found" -ForegroundColor Magenta
         Write-Host "`n"
         
         # Group by impact
@@ -895,10 +895,10 @@ Function Invoke-Forensics {
         Write-Host "`n"
         $caseId = New-AWSSupportCase
         if ($caseId) {
-            Write-Host "`n✅ AWS Support case created: $caseId" -ForegroundColor Green
+            Write-Host "`nAWS Support case created: $caseId" -ForegroundColor Green
         }
     } elseif ($script:Bottlenecks.Count -gt 0 -and -not $CreateSupportCase) {
-        Write-Host "`n💡 Tip: Run with -CreateSupportCase to automatically open an AWS Support case" -ForegroundColor Cyan
+        Write-Host "`nTip: Run with -CreateSupportCase to automatically open an AWS Support case" -ForegroundColor Cyan
     }
     
     Write-Host "`n"

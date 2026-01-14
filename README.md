@@ -5,13 +5,13 @@
 A collection of PowerShell utilities designed to help system administrators, DBAs, and engineers diagnose Windows Server performance issues. Originally created for AWS DMS migrations, these tools are useful for any Windows performance troubleshooting scenario.
 
 **Key Features:**
-- ✅ Comprehensive performance forensics (CPU, Memory, Disk, Network)
-- ✅ Automated bottleneck detection ("Here be dragons" 🐉)
-- ✅ Disk I/O performance testing (no external tools required)
-- ✅ CPU forensics (thread analysis, throttling detection)
-- ✅ Memory forensics (leak detection, page file analysis)
-- ✅ **Automatic AWS Support case creation** with diagnostic data
-- ✅ Works across all hyperscalers and on-premises
+- Comprehensive performance forensics (CPU, Memory, Disk, Network)
+- Automated bottleneck detection
+- Disk I/O performance testing (no external tools required)
+- CPU forensics (thread analysis, throttling detection)
+- Memory forensics (leak detection, page file analysis)
+- **Automatic AWS Support case creation** with diagnostic data
+- Works across all hyperscalers and on-premises
 
 ---
 
@@ -40,7 +40,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ## 📊 **Available Tools**
 
-### **1. Invoke-WindowsForensics.ps1** ⭐ NEW!
+### **1. Invoke-WindowsForensics.ps1** (NEW)
 **The ultimate Windows performance diagnostic tool** - comprehensive forensics with automatic issue detection.
 
 **What it does:**
@@ -48,7 +48,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 - Performs real disk I/O testing
 - Analyzes CPU usage, threads, and throttling
 - Detects memory leaks and paging issues
-- **Automatically identifies bottlenecks** ("Here be dragons" 🐉)
+- **Automatically identifies bottlenecks**
 - **Creates AWS Support case** with all diagnostic data
 
 **Usage:**
@@ -77,7 +77,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 **Output:**
 ```
-🐉 DRAGONS DETECTED: 3 performance issue(s) found
+BOTTLENECKS DETECTED: 3 performance issue(s) found
 
   CRITICAL ISSUES (1):
     • Memory: Low available memory
@@ -139,7 +139,7 @@ When things go wrong:
 
 ---
 
-## 🐉 **What Dragons Can Be Found?**
+## **What Bottlenecks Can Be Found?**
 
 The tool automatically detects:
 
@@ -217,7 +217,7 @@ aws support describe-services
 ```powershell
 .\Invoke-WindowsForensics.ps1 -Mode Quick
 ```
-Output: 3-minute assessment with automatic dragon detection
+Output: 3-minute assessment with automatic bottleneck detection
 
 ### **Example 2: Production Issue with Auto-Ticket**
 ```powershell
@@ -260,7 +260,7 @@ Start-Process powershell -Verb runAs
 
 ## 📦 **What's Included**
 
-- `Invoke-WindowsForensics.ps1` - **NEW!** Comprehensive forensics tool with dragon detection
+- `Invoke-WindowsForensics.ps1` - **NEW!** Comprehensive forensics tool with bottleneck detection
 - `ps-getperfcounters.ps1` - Legacy performance counter tool
 - `Measure-DiskPerformance.ps1` - Legacy disk testing tool
 - `README.md` - This documentation
@@ -289,7 +289,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ## 📝 **Version History**
 
-- **v2.0** (January 2026) - Complete rewrite with unified forensics tool, automatic dragon detection, CPU/Memory forensics
+- **v2.0** (January 2026) - Complete rewrite with unified forensics tool, automatic bottleneck detection, CPU/Memory forensics
 - **v1.5** (January 2026) - Added AWS Support API integration
 - **v1.0** (February 2022) - Initial release
 
