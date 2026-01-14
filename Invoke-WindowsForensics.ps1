@@ -657,6 +657,212 @@ Function Get-MemoryForensics {
 
 #endregion
 
+#region Database Forensics
+
+Function Get-DatabaseForensics {
+    Write-ForensicsHeader "DATABASE FORENSICS"
+    
+    Write-ForensicsLog "Scanning for database processes and connections..." -Level Info
+    
+    $databasesFound = $false
+    
+    # SQL Server Detection
+    $sqlServerProcesses = Get-Process | Where-Object { $_.ProcessName -like "sqlservr*" }
+    if ($sqlServerProcesses) {
+        $databasesFound = $true
+        Write-ForensicsLog "`n=== SQL Server Detected ===" -Level Info
+        
+        foreach ($proc in $sqlServerProcesses) {
+            $cpuPercent = [math]::Round(($proc.CPU / ((Get-Date) - $proc.StartTime).TotalSeconds), 2)
+            $memoryMB = [math]::Round($proc.WorkingSet64 / 1MB, 2)
+            Write-ForensicsLog "  Process: PID $($proc.Id), CPU: $cpuPercent%, Memory: $memoryMB MB" -Level Info
+        }
+        
+        # SQL Server connections
+        $sqlConnections = (Get-NetTCPConnection -LocalPort 1433 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
+        Write-ForensicsLog "  Active Connections: $sqlConnections" -Level Info
+        
+        if ($sqlConnections -gt 500) {
+            Add-Bottleneck -Category "Database" -Issue "High SQL Server connection count" `
+                -Value "$sqlConnections" -Threshold "500" -Impact "Medium"
+        }
+    }
+    
+    # MySQL/MariaDB Detection
+    $mysqlProcesses = Get-Process | Where-Object { $_.ProcessName -like "mysqld*" -or $_.ProcessName -like "mariadbd*" }
+    if ($mysqlProcesses) {
+        $databasesFound = $true
+        Write-ForensicsLog "`n=== MySQL/MariaDB Detected ===" -Level Info
+        
+        foreach ($proc in $mysqlProcesses) {
+            $cpuPercent = [math]::Round(($proc.CPU / ((Get-Date) - $proc.StartTime).TotalSeconds), 2)
+            $memoryMB = [math]::Round($proc.WorkingSet64 / 1MB, 2)
+            Write-ForensicsLog "  Process: PID $($proc.Id), CPU: $cpuPercent%, Memory: $memoryMB MB" -Level Info
+        }
+        
+        # MySQL connections
+        $mysqlConnections = (Get-NetTCPConnection -LocalPort 3306 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
+        Write-ForensicsLog "  Active Connections: $mysqlConnections" -Level Info
+        
+        if ($mysqlConnections -gt 500) {
+            Add-Bottleneck -Category "Database" -Issue "High MySQL connection count" `
+                -Value "$mysqlConnections" -Threshold "500" -Impact "Medium"
+        }
+    }
+    
+    # PostgreSQL Detection
+    $postgresProcesses = Get-Process | Where-Object { $_.ProcessName -like "postgres*" }
+    if ($postgresProcesses) {
+        $databasesFound = $true
+        Write-ForensicsLog "`n=== PostgreSQL Detected ===" -Level Info
+        
+        $mainProcess = $postgresProcesses | Sort-Object StartTime | Select-Object -First 1
+        $cpuPercent = [math]::Round(($mainProcess.CPU / ((Get-Date) - $mainProcess.StartTime).TotalSeconds), 2)
+        $memoryMB = [math]::Round($mainProcess.WorkingSet64 / 1MB, 2)
+        Write-ForensicsLog "  Process: PID $($mainProcess.Id), CPU: $cpuPercent%, Memory: $memoryMB MB" -Level Info
+        
+        # PostgreSQL connections
+        $pgConnections = (Get-NetTCPConnection -LocalPort 5432 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
+        Write-ForensicsLog "  Active Connections: $pgConnections" -Level Info
+        
+        if ($pgConnections -gt 500) {
+            Add-Bottleneck -Category "Database" -Issue "High PostgreSQL connection count" `
+                -Value "$pgConnections" -Threshold "500" -Impact "Medium"
+        }
+    }
+    
+    # MongoDB Detection
+    $mongoProcesses = Get-Process | Where-Object { $_.ProcessName -like "mongod*" }
+    if ($mongoProcesses) {
+        $databasesFound = $true
+        Write-ForensicsLog "`n=== MongoDB Detected ===" -Level Info
+        
+        foreach ($proc in $mongoProcesses) {
+            $cpuPercent = [math]::Round(($proc.CPU / ((Get-Date) - $proc.StartTime).TotalSeconds), 2)
+            $memoryMB = [math]::Round($proc.WorkingSet64 / 1MB, 2)
+            Write-ForensicsLog "  Process: PID $($proc.Id), CPU: $cpuPercent%, Memory: $memoryMB MB" -Level Info
+        }
+        
+        # MongoDB connections
+        $mongoConnections = (Get-NetTCPConnection -LocalPort 27017 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
+        Write-ForensicsLog "  Active Connections: $mongoConnections" -Level Info
+        
+        if ($mongoConnections -gt 1000) {
+            Add-Bottleneck -Category "Database" -Issue "High MongoDB connection count" `
+                -Value "$mongoConnections" -Threshold "1000" -Impact "Medium"
+        }
+    }
+    
+    # Redis Detection
+    $redisProcesses = Get-Process | Where-Object { $_.ProcessName -like "redis-server*" }
+    if ($redisProcesses) {
+        $databasesFound = $true
+        Write-ForensicsLog "`n=== Redis Detected ===" -Level Info
+        
+        foreach ($proc in $redisProcesses) {
+            $cpuPercent = [math]::Round(($proc.CPU / ((Get-Date) - $proc.StartTime).TotalSeconds), 2)
+            $memoryMB = [math]::Round($proc.WorkingSet64 / 1MB, 2)
+            Write-ForensicsLog "  Process: PID $($proc.Id), CPU: $cpuPercent%, Memory: $memoryMB MB" -Level Info
+        }
+        
+        # Redis connections
+        $redisConnections = (Get-NetTCPConnection -LocalPort 6379 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
+        Write-ForensicsLog "  Active Connections: $redisConnections" -Level Info
+        
+        if ($redisConnections -gt 10000) {
+            Add-Bottleneck -Category "Database" -Issue "High Redis connection count" `
+                -Value "$redisConnections" -Threshold "10000" -Impact "Medium"
+        }
+    }
+    
+    # Cassandra Detection
+    $cassandraProcesses = Get-Process | Where-Object { $_.ProcessName -like "java*" -and $_.CommandLine -like "*cassandra*" }
+    if ($cassandraProcesses) {
+        $databasesFound = $true
+        Write-ForensicsLog "`n=== Cassandra Detected ===" -Level Info
+        
+        foreach ($proc in $cassandraProcesses) {
+            $cpuPercent = [math]::Round(($proc.CPU / ((Get-Date) - $proc.StartTime).TotalSeconds), 2)
+            $memoryMB = [math]::Round($proc.WorkingSet64 / 1MB, 2)
+            Write-ForensicsLog "  Process: PID $($proc.Id), CPU: $cpuPercent%, Memory: $memoryMB MB" -Level Info
+        }
+        
+        # Cassandra connections
+        $cassandraConnections = (Get-NetTCPConnection -LocalPort 9042 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
+        Write-ForensicsLog "  Active Connections: $cassandraConnections" -Level Info
+        
+        if ($cassandraConnections -gt 1000) {
+            Add-Bottleneck -Category "Database" -Issue "High Cassandra connection count" `
+                -Value "$cassandraConnections" -Threshold "1000" -Impact "Medium"
+        }
+    }
+    
+    # Elasticsearch Detection
+    $elasticsearchProcesses = Get-Process | Where-Object { $_.ProcessName -like "java*" -and $_.CommandLine -like "*elasticsearch*" }
+    if ($elasticsearchProcesses) {
+        $databasesFound = $true
+        Write-ForensicsLog "`n=== Elasticsearch Detected ===" -Level Info
+        
+        foreach ($proc in $elasticsearchProcesses) {
+            $cpuPercent = [math]::Round(($proc.CPU / ((Get-Date) - $proc.StartTime).TotalSeconds), 2)
+            $memoryMB = [math]::Round($proc.WorkingSet64 / 1MB, 2)
+            Write-ForensicsLog "  Process: PID $($proc.Id), CPU: $cpuPercent%, Memory: $memoryMB MB" -Level Info
+        }
+        
+        # Elasticsearch connections
+        $esConnections = (Get-NetTCPConnection -LocalPort 9200 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
+        Write-ForensicsLog "  Active Connections: $esConnections" -Level Info
+    }
+    
+    # Oracle Detection
+    $oracleProcesses = Get-Process | Where-Object { $_.ProcessName -like "oracle*" }
+    if ($oracleProcesses) {
+        $databasesFound = $true
+        Write-ForensicsLog "`n=== Oracle Database Detected ===" -Level Info
+        
+        foreach ($proc in $oracleProcesses | Select-Object -First 1) {
+            $cpuPercent = [math]::Round(($proc.CPU / ((Get-Date) - $proc.StartTime).TotalSeconds), 2)
+            $memoryMB = [math]::Round($proc.WorkingSet64 / 1MB, 2)
+            Write-ForensicsLog "  Process: PID $($proc.Id), CPU: $cpuPercent%, Memory: $memoryMB MB" -Level Info
+        }
+        
+        # Oracle connections
+        $oracleConnections = (Get-NetTCPConnection -LocalPort 1521 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
+        Write-ForensicsLog "  Active Connections: $oracleConnections" -Level Info
+        
+        if ($oracleConnections -gt 500) {
+            Add-Bottleneck -Category "Database" -Issue "High Oracle connection count" `
+                -Value "$oracleConnections" -Threshold "500" -Impact "Medium"
+        }
+    }
+    
+    # General database connection analysis
+    if ($databasesFound) {
+        Write-ForensicsLog "`n=== Database Connection Summary ===" -Level Info
+        
+        # Check for connection churn on database ports
+        $dbPorts = @(1433, 3306, 5432, 27017, 6379, 9042, 1521, 9200)
+        $totalTimeWait = 0
+        
+        foreach ($port in $dbPorts) {
+            $timeWaitCount = (Get-NetTCPConnection -LocalPort $port -State TimeWait -ErrorAction SilentlyContinue | Measure-Object).Count
+            $totalTimeWait += $timeWaitCount
+        }
+        
+        if ($totalTimeWait -gt 1000) {
+            Write-ForensicsLog "  High TIME_WAIT on database ports: $totalTimeWait" -Level Warning
+            Add-Bottleneck -Category "Database" -Issue "High connection churn (TIME_WAIT)" `
+                -Value "$totalTimeWait" -Threshold "1000" -Impact "Medium"
+        }
+        
+        Write-ForensicsLog "`nDatabase forensics completed" -Level Success
+    } else {
+        Write-ForensicsLog "No common database processes detected" -Level Info
+    }
+}
+
+#endregion
+
 #region AWS Support Integration
 
 Function New-AWSSupportCase {
@@ -817,12 +1023,14 @@ Function Invoke-Forensics {
             Test-DiskPerformance
             Get-CPUForensics
             Get-MemoryForensics
+            Get-DatabaseForensics
         }
         'Deep' {
             Get-PerformanceCounters
             Test-DiskPerformance
             Get-CPUForensics
             Get-MemoryForensics
+            Get-DatabaseForensics
         }
         'DiskOnly' {
             Get-PerformanceCounters
