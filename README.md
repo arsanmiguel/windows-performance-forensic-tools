@@ -10,13 +10,7 @@ A collection of PowerShell utilities designed to help system administrators, DBA
 - ✅ Disk I/O performance testing (no external tools required)
 - ✅ CPU forensics (thread analysis, throttling detection)
 - ✅ Memory forensics (leak detection, page file analysis)
-- ✅ **Database forensics** (SQL Server, MySQL, PostgreSQL, MongoDB, Redis, Cassandra, Oracle, Elasticsearch)
-  - **DBA-level query analysis**: Top 5 queries by CPU/time, long-running queries (>30s), blocking detection
-  - **SQL Server/MySQL/PostgreSQL**: DMV/performance schema queries, active sessions, wait states
-  - **MongoDB**: currentOp() and profiler analysis for slow operations
-  - **Redis**: SLOWLOG, ops/sec metrics, connection rejection tracking
-  - **Oracle**: v$session and v$sql analysis, blocking session detection
-  - **Elasticsearch**: Tasks API for long-running searches, thread pool monitoring
+- ✅ **Database forensics** (SQL Server, MySQL, PostgreSQL, MongoDB, Redis, Cassandra, Oracle, Elasticsearch) - DBA-level query analysis, top 5 queries by CPU/time, long-running queries, blocking detection
 - ✅ **Automatic AWS Support case creation** with diagnostic data
 - ✅ Works across all hyperscalers and on-premises
 
