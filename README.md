@@ -50,6 +50,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 - Performs real disk I/O testing
 - Analyzes CPU usage, threads, and throttling
 - Detects memory leaks and paging issues
+- **Detects and analyzes database bottlenecks** (SQL Server, MySQL, PostgreSQL, MongoDB, Redis, Cassandra, Oracle, Elasticsearch)
 - **Automatically identifies bottlenecks**
 - **Creates AWS Support case** with all diagnostic data
 
