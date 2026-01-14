@@ -58,6 +58,11 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
   - Connection pool exhaustion and rejection tracking (all platforms)
   - Thread pool monitoring (Elasticsearch)
   - Slow operation profiling (MongoDB, Redis)
+  - **DMS migration readiness checks** (MySQL, PostgreSQL, Oracle, SQL Server)
+    - MySQL: Binary logging, binlog format, retention
+    - PostgreSQL: WAL level, replication slots
+    - Oracle: ARCHIVELOG mode, supplemental logging, Data Guard lag
+    - SQL Server: Agent status, recovery model, AlwaysOn lag
 - **Automatically identifies bottlenecks**
 - **Creates AWS Support case** with all diagnostic data
 
