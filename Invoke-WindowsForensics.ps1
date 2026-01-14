@@ -686,6 +686,73 @@ Function Get-DatabaseForensics {
             Add-Bottleneck -Category "Database" -Issue "High SQL Server connection count" `
                 -Value "$sqlConnections" -Threshold "500" -Impact "Medium"
         }
+        
+        # SQL Server Query Analysis (requires SQL authentication)
+        try {
+            # Try to connect to SQL Server using Windows Authentication
+            $sqlQuery = @"
+-- Top 5 queries by CPU time
+SELECT TOP 5
+    qs.execution_count AS [Executions],
+    qs.total_worker_time / 1000 AS [Total CPU (ms)],
+    qs.total_worker_time / qs.execution_count / 1000 AS [Avg CPU (ms)],
+    qs.total_elapsed_time / 1000 AS [Total Duration (ms)],
+    SUBSTRING(qt.text, (qs.statement_start_offset/2)+1,
+        ((CASE qs.statement_end_offset
+            WHEN -1 THEN DATALENGTH(qt.text)
+            ELSE qs.statement_end_offset
+        END - qs.statement_start_offset)/2) + 1) AS [Query Text]
+FROM sys.dm_exec_query_stats qs
+CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
+ORDER BY qs.total_worker_time DESC;
+
+-- Currently executing queries
+SELECT 
+    r.session_id,
+    r.status,
+    r.command,
+    r.cpu_time,
+    r.total_elapsed_time,
+    r.wait_type,
+    r.wait_time,
+    r.blocking_session_id,
+    SUBSTRING(qt.text, (r.statement_start_offset/2)+1,
+        ((CASE r.statement_end_offset
+            WHEN -1 THEN DATALENGTH(qt.text)
+            ELSE r.statement_end_offset
+        END - r.statement_start_offset)/2) + 1) AS [Current Query]
+FROM sys.dm_exec_requests r
+CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) qt
+WHERE r.session_id > 50
+ORDER BY r.total_elapsed_time DESC;
+"@
+            
+            $sqlCmd = "sqlcmd -S localhost -E -Q `"$sqlQuery`" -h -1 -W"
+            $queryResults = Invoke-Expression $sqlCmd 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-ForensicsLog "`n  SQL Server Query Analysis:" -Level Info
+                Write-ForensicsLog "$queryResults" -Level Info
+                
+                # Check for long-running queries (>30 seconds)
+                $longRunning = $queryResults | Select-String "(\d+)\s+running" | ForEach-Object {
+                    if ($_.Matches[0].Groups[1].Value -gt 30000) { $_ }
+                }
+                
+                if ($longRunning) {
+                    Add-Bottleneck -Category "Database" -Issue "Long-running SQL queries detected (>30s)" `
+                        -Value "Yes" -Threshold "30s" -Impact "High"
+                }
+                
+                # Check for blocking
+                if ($queryResults -match "blocking_session_id.*[1-9]") {
+                    Add-Bottleneck -Category "Database" -Issue "SQL Server blocking detected" `
+                        -Value "Yes" -Threshold "No blocking" -Impact "High"
+                }
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to query SQL Server DMVs (requires SQL authentication)" -Level Warning
+        }
     }
     
     # MySQL/MariaDB Detection
@@ -708,6 +775,40 @@ Function Get-DatabaseForensics {
             Add-Bottleneck -Category "Database" -Issue "High MySQL connection count" `
                 -Value "$mysqlConnections" -Threshold "500" -Impact "Medium"
         }
+        
+        # MySQL Query Analysis
+        try {
+            $mysqlQuery = @"
+SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, LEFT(INFO, 100) AS QUERY
+FROM information_schema.PROCESSLIST
+WHERE COMMAND != 'Sleep' AND TIME > 30
+ORDER BY TIME DESC LIMIT 5;
+
+SELECT 
+    DIGEST_TEXT AS query,
+    COUNT_STAR AS exec_count,
+    ROUND(AVG_TIMER_WAIT/1000000000, 2) AS avg_time_ms,
+    ROUND(SUM_TIMER_WAIT/1000000000, 2) AS total_time_ms,
+    ROUND(SUM_ROWS_EXAMINED/COUNT_STAR, 0) AS avg_rows_examined
+FROM performance_schema.events_statements_summary_by_digest
+ORDER BY SUM_TIMER_WAIT DESC LIMIT 5;
+"@
+            
+            $mysqlCmd = "mysql -u root -e `"$mysqlQuery`""
+            $queryResults = Invoke-Expression $mysqlCmd 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-ForensicsLog "`n  MySQL Query Analysis:" -Level Info
+                Write-ForensicsLog "$queryResults" -Level Info
+                
+                if ($queryResults -match "TIME.*[3-9]\d{2,}") {
+                    Add-Bottleneck -Category "Database" -Issue "Long-running MySQL queries detected (>30s)" `
+                        -Value "Yes" -Threshold "30s" -Impact "High"
+                }
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to query MySQL (requires authentication)" -Level Warning
+        }
     }
     
     # PostgreSQL Detection
@@ -728,6 +829,40 @@ Function Get-DatabaseForensics {
         if ($pgConnections -gt 500) {
             Add-Bottleneck -Category "Database" -Issue "High PostgreSQL connection count" `
                 -Value "$pgConnections" -Threshold "500" -Impact "Medium"
+        }
+        
+        # PostgreSQL Query Analysis
+        try {
+            $pgQuery = @"
+SELECT pid, usename, application_name, state, 
+       EXTRACT(EPOCH FROM (now() - query_start)) AS duration_seconds,
+       LEFT(query, 100) AS query
+FROM pg_stat_activity
+WHERE state != 'idle' AND query NOT LIKE '%pg_stat_activity%'
+ORDER BY duration_seconds DESC LIMIT 5;
+
+SELECT query, calls, 
+       ROUND(total_exec_time::numeric, 2) AS total_time_ms,
+       ROUND(mean_exec_time::numeric, 2) AS avg_time_ms,
+       ROUND((100 * total_exec_time / SUM(total_exec_time) OVER ())::numeric, 2) AS pct_total
+FROM pg_stat_statements
+ORDER BY total_exec_time DESC LIMIT 5;
+"@
+            
+            $pgCmd = "psql -U postgres -c `"$pgQuery`""
+            $queryResults = Invoke-Expression $pgCmd 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-ForensicsLog "`n  PostgreSQL Query Analysis:" -Level Info
+                Write-ForensicsLog "$queryResults" -Level Info
+                
+                if ($queryResults -match "duration_seconds.*[3-9]\d+") {
+                    Add-Bottleneck -Category "Database" -Issue "Long-running PostgreSQL queries detected (>30s)" `
+                        -Value "Yes" -Threshold "30s" -Impact "High"
+                }
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to query PostgreSQL (requires authentication)" -Level Warning
         }
     }
     
