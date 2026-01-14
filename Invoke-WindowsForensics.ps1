@@ -886,6 +886,34 @@ ORDER BY total_exec_time DESC LIMIT 5;
             Add-Bottleneck -Category "Database" -Issue "High MongoDB connection count" `
                 -Value "$mongoConnections" -Threshold "1000" -Impact "Medium"
         }
+        
+        # MongoDB Query Analysis
+        try {
+            $mongoQuery = @"
+db.currentOp({`$or: [{op: {`$in: ['query', 'command']}}, {secs_running: {`$gte: 30}}]}).inprog.forEach(function(op) {
+    print('OpID: ' + op.opid + ' | Duration: ' + op.secs_running + 's | NS: ' + op.ns + ' | Query: ' + JSON.stringify(op.command).substring(0,100));
+});
+print('---TOP 5 SLOWEST OPERATIONS---');
+db.system.profile.find().sort({millis: -1}).limit(5).forEach(function(op) {
+    print('Duration: ' + op.millis + 'ms | Op: ' + op.op + ' | NS: ' + op.ns + ' | Query: ' + JSON.stringify(op.command).substring(0,100));
+});
+"@
+            
+            $mongoCmd = "mongo --quiet --eval `"$mongoQuery`""
+            $queryResults = Invoke-Expression $mongoCmd 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-ForensicsLog "`n  MongoDB Query Analysis:" -Level Info
+                Write-ForensicsLog "$queryResults" -Level Info
+                
+                if ($queryResults -match "Duration: [3-9]\d+s") {
+                    Add-Bottleneck -Category "Database" -Issue "Long-running MongoDB operations detected (>30s)" `
+                        -Value "Yes" -Threshold "30s" -Impact "High"
+                }
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to query MongoDB (requires authentication or profiling enabled)" -Level Warning
+        }
     }
     
     # Redis Detection
@@ -907,6 +935,32 @@ ORDER BY total_exec_time DESC LIMIT 5;
         if ($redisConnections -gt 10000) {
             Add-Bottleneck -Category "Database" -Issue "High Redis connection count" `
                 -Value "$redisConnections" -Threshold "10000" -Impact "Medium"
+        }
+        
+        # Redis Performance Analysis
+        try {
+            $redisInfo = redis-cli INFO stats 2>&1
+            $redisSlowlog = redis-cli SLOWLOG GET 5 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-ForensicsLog "`n  Redis Performance Metrics:" -Level Info
+                
+                # Parse key metrics
+                $totalCommands = ($redisInfo | Select-String "total_commands_processed:(\d+)").Matches.Groups[1].Value
+                $opsPerSec = ($redisInfo | Select-String "instantaneous_ops_per_sec:(\d+)").Matches.Groups[1].Value
+                $rejectedConns = ($redisInfo | Select-String "rejected_connections:(\d+)").Matches.Groups[1].Value
+                
+                Write-ForensicsLog "  Total Commands: $totalCommands | Ops/sec: $opsPerSec | Rejected Connections: $rejectedConns" -Level Info
+                Write-ForensicsLog "`n  Top 5 Slow Commands:" -Level Info
+                Write-ForensicsLog "$redisSlowlog" -Level Info
+                
+                if ([int]$rejectedConns -gt 0) {
+                    Add-Bottleneck -Category "Database" -Issue "Redis connection rejections detected" `
+                        -Value "$rejectedConns" -Threshold "0" -Impact "High"
+                }
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to query Redis (requires redis-cli)" -Level Warning
         }
     }
     
@@ -947,6 +1001,50 @@ ORDER BY total_exec_time DESC LIMIT 5;
         # Elasticsearch connections
         $esConnections = (Get-NetTCPConnection -LocalPort 9200 -State Established -ErrorAction SilentlyContinue | Measure-Object).Count
         Write-ForensicsLog "  Active Connections: $esConnections" -Level Info
+        
+        # Elasticsearch Query Analysis
+        try {
+            # Get current tasks
+            $esTasks = Invoke-RestMethod -Uri "http://localhost:9200/_tasks?detailed=true&actions=*search*" -Method Get 2>&1
+            
+            # Get slow queries from slow log
+            $esSlowLog = Invoke-RestMethod -Uri "http://localhost:9200/_all/_settings?include_defaults=true" -Method Get 2>&1
+            
+            # Get thread pool stats
+            $esThreadPool = Invoke-RestMethod -Uri "http://localhost:9200/_cat/thread_pool?v&h=node_name,name,active,queue,rejected" -Method Get 2>&1
+            
+            Write-ForensicsLog "`n  Elasticsearch Performance Analysis:" -Level Info
+            
+            # Parse active tasks
+            if ($esTasks.tasks) {
+                $longRunning = $esTasks.tasks.PSObject.Properties | Where-Object { 
+                    $_.Value.running_time_in_nanos / 1000000000 -gt 30 
+                }
+                
+                if ($longRunning) {
+                    Write-ForensicsLog "  Long-running queries detected:" -Level Warning
+                    foreach ($task in $longRunning | Select-Object -First 5) {
+                        $duration = [math]::Round($task.Value.running_time_in_nanos / 1000000000, 2)
+                        Write-ForensicsLog "    Task: $($task.Value.action) | Duration: ${duration}s" -Level Info
+                    }
+                    
+                    Add-Bottleneck -Category "Database" -Issue "Long-running Elasticsearch queries detected (>30s)" `
+                        -Value "Yes" -Threshold "30s" -Impact "High"
+                }
+            }
+            
+            # Check thread pool rejections
+            Write-ForensicsLog "`n  Thread Pool Status:" -Level Info
+            Write-ForensicsLog "$esThreadPool" -Level Info
+            
+            if ($esThreadPool -match "rejected.*[1-9]") {
+                Add-Bottleneck -Category "Database" -Issue "Elasticsearch thread pool rejections detected" `
+                    -Value "Yes" -Threshold "0" -Impact "High"
+            }
+            
+        } catch {
+            Write-ForensicsLog "  Unable to query Elasticsearch API (requires HTTP access to localhost:9200)" -Level Warning
+        }
     }
     
     # Oracle Detection
@@ -968,6 +1066,48 @@ ORDER BY total_exec_time DESC LIMIT 5;
         if ($oracleConnections -gt 500) {
             Add-Bottleneck -Category "Database" -Issue "High Oracle connection count" `
                 -Value "$oracleConnections" -Threshold "500" -Impact "Medium"
+        }
+        
+        # Oracle Query Analysis
+        try {
+            $oracleQuery = @"
+SELECT sid, serial#, username, status, 
+       ROUND(last_call_et/60, 2) AS duration_min,
+       sql_id, blocking_session,
+       event, wait_time
+FROM v`$session
+WHERE status = 'ACTIVE' AND username IS NOT NULL
+ORDER BY last_call_et DESC FETCH FIRST 5 ROWS ONLY;
+
+SELECT sql_id, 
+       executions,
+       ROUND(elapsed_time/1000000, 2) AS total_time_sec,
+       ROUND(cpu_time/1000000, 2) AS cpu_time_sec,
+       ROUND(buffer_gets/executions, 0) AS avg_buffer_gets,
+       SUBSTR(sql_text, 1, 100) AS sql_text
+FROM v`$sql
+ORDER BY elapsed_time DESC FETCH FIRST 5 ROWS ONLY;
+"@
+            
+            $oracleCmd = "sqlplus -S / as sysdba @<(echo `"$oracleQuery`")"
+            $queryResults = Invoke-Expression $oracleCmd 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-ForensicsLog "`n  Oracle Query Analysis:" -Level Info
+                Write-ForensicsLog "$queryResults" -Level Info
+                
+                if ($queryResults -match "duration_min.*[3-9]\d+") {
+                    Add-Bottleneck -Category "Database" -Issue "Long-running Oracle sessions detected (>30min)" `
+                        -Value "Yes" -Threshold "30min" -Impact "High"
+                }
+                
+                if ($queryResults -match "blocking_session.*[1-9]") {
+                    Add-Bottleneck -Category "Database" -Issue "Oracle blocking sessions detected" `
+                        -Value "Yes" -Threshold "No blocking" -Impact "High"
+                }
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to query Oracle (requires sqlplus and authentication)" -Level Warning
         }
     }
     
