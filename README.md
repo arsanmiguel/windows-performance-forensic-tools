@@ -11,6 +11,9 @@ A collection of PowerShell utilities designed to help system administrators, DBA
 - ✅ CPU forensics (thread analysis, throttling detection)
 - ✅ Memory forensics (leak detection, page file analysis)
 - ✅ **Database forensics** (SQL Server, MySQL, PostgreSQL, MongoDB, Redis, Cassandra, Oracle, Elasticsearch)
+  - **DBA-level query analysis**: Top 5 queries by CPU/time, long-running queries (>30s), blocking detection
+  - **Resource consumption**: Per-query CPU time, execution count, rows examined
+  - **Active query monitoring**: Currently executing queries with wait states and duration
 - ✅ **Automatic AWS Support case creation** with diagnostic data
 - ✅ Works across all hyperscalers and on-premises
 
@@ -52,6 +55,10 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 - Analyzes CPU usage, threads, and throttling
 - Detects memory leaks and paging issues
 - **Detects and analyzes database bottlenecks** (SQL Server, MySQL, PostgreSQL, MongoDB, Redis, Cassandra, Oracle, Elasticsearch)
+  - Top 5 queries by CPU time and resource consumption
+  - Long-running queries (>30 seconds)
+  - Blocking and wait state analysis
+  - Connection pool exhaustion detection
 - **Automatically identifies bottlenecks**
 - **Creates AWS Support case** with all diagnostic data
 
