@@ -2,15 +2,17 @@
 
 ## Overview
 
-A collection of PowerShell utilities designed to help system administrators, DBAs, and engineers diagnose Windows Server performance issues. Originally created for AWS DMS migrations, these tools are useful for any Windows performance troubleshooting scenario.
+A comprehensive PowerShell-based diagnostic tool for Windows servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. **Originally created for AWS DMS migrations - run this on your SOURCE DATABASE SERVER.** Now useful for any Windows performance troubleshooting scenario.
 
 **Key Features:**
 - ✅ Comprehensive performance forensics (CPU, Memory, Disk, Network, Database)
+- ✅ **AWS DMS SOURCE DATABASE diagnostics** (binary logging, replication lag, connection analysis)
 - ✅ Automated bottleneck detection
-- ✅ Disk I/O performance testing (no external tools required)
-- ✅ CPU forensics (thread analysis, throttling detection)
-- ✅ Memory forensics (leak detection, page file analysis)
-- ✅ **Database forensics** - DBA-level query analysis capabilities
+- ✅ CPU forensics (thread analysis, throttling detection, context switches, processor queue)
+- ✅ Memory forensics (leak detection, page file analysis, committed memory, page faults)
+- ✅ Disk I/O testing (usage, latency, read/write performance, queue length)
+- ✅ **Database forensics** - DBA-level query analysis + DMS readiness checks
+- ✅ Network analysis (connection states, retransmissions, errors, database connectivity)
 - ✅ **Automatic AWS Support case creation** with diagnostic data
 - ✅ Works across all hyperscalers and on-premises
 
