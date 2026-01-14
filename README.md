@@ -104,24 +104,6 @@ AWS Support case created: case-123456789
 
 ---
 
-### **2. ps-getperfcounters.ps1** (Legacy)
-<details>
-<summary><strong>Original performance counter collection tool with AWS Support integration</strong></summary>
-
-**Usage:**
-```powershell
-.\ps-getperfcounters.ps1 -CreateSupportCase -Severity high
-```
-
-</details>
-
----
-
-### **3. Measure-DiskPerformance.ps1** (Legacy)
-Original disk I/O testing tool (requires SQLIO.exe).
-
----
-
 ## 📖 **Examples**
 
 <details>
