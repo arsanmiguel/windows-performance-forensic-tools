@@ -1284,7 +1284,17 @@ Function New-AWSSupportCase {
     # Build case description
     $sysInfo = $script:DiagnosticData['SystemInfo']
     
-    $caseSubject = "Windows Performance Issues Detected - $($sysInfo.ComputerName)"
+    # Get instance ID if on AWS, otherwise use hostname
+    $instanceId = $null
+    try {
+        $instanceId = Invoke-RestMethod -Uri "http://169.254.169.254/latest/meta-data/instance-id" -TimeoutSec 2 -ErrorAction SilentlyContinue
+    } catch {
+        # Not on AWS
+    }
+    
+    $systemIdentifier = if ($instanceId) { $instanceId } else { $sysInfo.ComputerName }
+    
+    $caseSubject = "Windows Performance Issues Detected - $systemIdentifier"
     
     $bottleneckSummary = $script:Bottlenecks | ForEach-Object {
         "[$($_.Impact)] $($_.Category): $($_.Issue) (Current: $($_.CurrentValue), Threshold: $($_.Threshold))"
