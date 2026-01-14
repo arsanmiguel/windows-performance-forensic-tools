@@ -1070,41 +1070,32 @@ db.system.profile.find().sort({millis: -1}).limit(5).forEach(function(op) {
         
         # Oracle Query Analysis
         try {
-            $oracleQuery = @"
-SELECT sid, serial#, username, status, 
-       ROUND(last_call_et/60, 2) AS duration_min,
-       sql_id, blocking_session,
-       event, wait_time
-FROM v`$session
-WHERE status = 'ACTIVE' AND username IS NOT NULL
-ORDER BY last_call_et DESC FETCH FIRST 5 ROWS ONLY;
-
-SELECT sql_id, 
-       executions,
-       ROUND(elapsed_time/1000000, 2) AS total_time_sec,
-       ROUND(cpu_time/1000000, 2) AS cpu_time_sec,
-       ROUND(buffer_gets/executions, 0) AS avg_buffer_gets,
-       SUBSTR(sql_text, 1, 100) AS sql_text
-FROM v`$sql
-ORDER BY elapsed_time DESC FETCH FIRST 5 ROWS ONLY;
-"@
+            Write-ForensicsLog "`n  Oracle Query Analysis:" -Level Info
             
-            $oracleCmd = "sqlplus -S / as sysdba @<(echo `"$oracleQuery`")"
-            $queryResults = Invoke-Expression $oracleCmd 2>&1
+            # Active sessions query
+            $sessionQuery = "SELECT sid, serial#, username, status, ROUND(last_call_et/60, 2) AS duration_min, sql_id, blocking_session, event FROM v`$session WHERE status = 'ACTIVE' AND username IS NOT NULL ORDER BY last_call_et DESC FETCH FIRST 5 ROWS ONLY;"
+            $sessionResults = echo $sessionQuery | sqlplus -S / as sysdba 2>&1
             
             if ($LASTEXITCODE -eq 0) {
-                Write-ForensicsLog "`n  Oracle Query Analysis:" -Level Info
-                Write-ForensicsLog "$queryResults" -Level Info
+                Write-ForensicsLog "$sessionResults" -Level Info
                 
-                if ($queryResults -match "duration_min.*[3-9]\d+") {
+                if ($sessionResults -match "duration_min.*[3-9]\d+") {
                     Add-Bottleneck -Category "Database" -Issue "Long-running Oracle sessions detected (>30min)" `
                         -Value "Yes" -Threshold "30min" -Impact "High"
                 }
                 
-                if ($queryResults -match "blocking_session.*[1-9]") {
+                if ($sessionResults -match "blocking_session.*[1-9]") {
                     Add-Bottleneck -Category "Database" -Issue "Oracle blocking sessions detected" `
                         -Value "Yes" -Threshold "No blocking" -Impact "High"
                 }
+            }
+            
+            # Top queries by elapsed time
+            $sqlQuery = "SELECT sql_id, executions, ROUND(elapsed_time/1000000, 2) AS total_time_sec, ROUND(cpu_time/1000000, 2) AS cpu_time_sec, ROUND(buffer_gets/NULLIF(executions,0), 0) AS avg_buffer_gets FROM v`$sql ORDER BY elapsed_time DESC FETCH FIRST 5 ROWS ONLY;"
+            $sqlResults = echo $sqlQuery | sqlplus -S / as sysdba 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-ForensicsLog "$sqlResults" -Level Info
             }
         } catch {
             Write-ForensicsLog "  Unable to query Oracle (requires sqlplus and authentication)" -Level Warning
