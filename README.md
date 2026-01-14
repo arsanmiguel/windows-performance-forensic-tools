@@ -52,6 +52,10 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 - **Creates AWS Support case** with all diagnostic data
 
 **Usage:**
+
+<details>
+<summary><strong>Click to expand usage examples</strong></summary>
+
 ```powershell
 # Quick diagnostics (3 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode Quick
@@ -74,6 +78,8 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 # Memory-only diagnostics
 .\Invoke-WindowsForensics.ps1 -Mode MemoryOnly
 ```
+
+</details>
 
 **Output:**
 ```
