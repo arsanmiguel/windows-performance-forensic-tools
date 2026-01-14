@@ -753,6 +753,43 @@ ORDER BY r.total_elapsed_time DESC;
         } catch {
             Write-ForensicsLog "  Unable to query SQL Server DMVs (requires SQL authentication)" -Level Warning
         }
+        
+        # DMS-specific checks for SQL Server
+        try {
+            Write-ForensicsLog "`n  DMS Migration Readiness:" -Level Info
+            
+            # Check SQL Server Agent status
+            $agentService = Get-Service -Name "SQLSERVERAGENT" -ErrorAction SilentlyContinue
+            if ($agentService) {
+                Write-ForensicsLog "    SQL Server Agent: $($agentService.Status)" -Level Info
+                if ($agentService.Status -ne "Running") {
+                    Add-Bottleneck -Category "DMS" -Issue "SQL Server Agent not running - required for DMS CDC" `
+                        -Value "$($agentService.Status)" -Threshold "Running" -Impact "High"
+                }
+            }
+            
+            # Check database recovery models
+            $recoveryCheck = "SELECT name, recovery_model_desc FROM sys.databases WHERE name NOT IN ('master','model','msdb','tempdb');"
+            $recoveryResults = Invoke-Expression "sqlcmd -S localhost -E -Q `"$recoveryCheck`" -h -1 -W" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-ForensicsLog "    Database Recovery Models:" -Level Info
+                Write-ForensicsLog "$recoveryResults" -Level Info
+                if ($recoveryResults -match "SIMPLE") {
+                    Add-Bottleneck -Category "DMS" -Issue "SQL Server database(s) in SIMPLE recovery - DMS CDC requires FULL" `
+                        -Value "SIMPLE" -Threshold "FULL" -Impact "High"
+                }
+            }
+            
+            # Check for AlwaysOn configuration
+            $alwaysOnCheck = "SELECT ar.replica_server_name, drs.synchronization_state_desc, drs.log_send_queue_size, drs.redo_queue_size FROM sys.dm_hadr_database_replica_states drs INNER JOIN sys.availability_replicas ar ON drs.replica_id = ar.replica_id WHERE drs.is_local = 1;"
+            $alwaysOnResults = Invoke-Expression "sqlcmd -S localhost -E -Q `"$alwaysOnCheck`" -h -1 -W" 2>&1
+            if ($LASTEXITCODE -eq 0 -and $alwaysOnResults -notmatch "^$") {
+                Write-ForensicsLog "    AlwaysOn Replica Status:" -Level Info
+                Write-ForensicsLog "$alwaysOnResults" -Level Info
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to check DMS readiness (requires SQL authentication)" -Level Warning
+        }
     }
     
     # MySQL/MariaDB Detection
@@ -809,6 +846,39 @@ ORDER BY SUM_TIMER_WAIT DESC LIMIT 5;
         } catch {
             Write-ForensicsLog "  Unable to query MySQL (requires authentication)" -Level Warning
         }
+        
+        # DMS-specific checks for MySQL
+        try {
+            Write-ForensicsLog "`n  DMS Migration Readiness:" -Level Info
+            
+            # Check binary logging
+            $binlogStatus = & mysql -u root -e "SHOW VARIABLES LIKE 'log_bin';" 2>&1 | Select-String "ON|OFF"
+            Write-ForensicsLog "    Binary Logging: $binlogStatus" -Level Info
+            if ($binlogStatus -notmatch "ON") {
+                Add-Bottleneck -Category "DMS" -Issue "MySQL binary logging disabled - required for CDC" `
+                    -Value "OFF" -Threshold "ON" -Impact "High"
+            }
+            
+            # Check binlog format
+            $binlogFormat = & mysql -u root -e "SHOW VARIABLES LIKE 'binlog_format';" 2>&1 | Select-String "ROW|STATEMENT|MIXED"
+            Write-ForensicsLog "    Binary Log Format: $binlogFormat" -Level Info
+            if ($binlogFormat -notmatch "ROW") {
+                Add-Bottleneck -Category "DMS" -Issue "MySQL binlog format not ROW - required for DMS CDC" `
+                    -Value "$binlogFormat" -Threshold "ROW" -Impact "High"
+            }
+            
+            # Check binlog retention
+            $binlogRetention = & mysql -u root -e "SHOW VARIABLES LIKE 'expire_logs_days';" 2>&1 | Select-String "\d+"
+            Write-ForensicsLog "    Binary Log Retention: $binlogRetention days" -Level Info
+            
+            # Check replication lag
+            $slaveStatus = & mysql -u root -e "SHOW SLAVE STATUS\G" 2>&1 | Select-String "Seconds_Behind_Master"
+            if ($slaveStatus -and $slaveStatus -notmatch "NULL") {
+                Write-ForensicsLog "    Replication Lag: $slaveStatus" -Level Info
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to check MySQL DMS readiness (requires authentication)" -Level Warning
+        }
     }
     
     # PostgreSQL Detection
@@ -863,6 +933,40 @@ ORDER BY total_exec_time DESC LIMIT 5;
             }
         } catch {
             Write-ForensicsLog "  Unable to query PostgreSQL (requires authentication)" -Level Warning
+        }
+        
+        # DMS-specific checks for PostgreSQL
+        try {
+            Write-ForensicsLog "`n  DMS Migration Readiness:" -Level Info
+            
+            # Check WAL level
+            $walLevel = & psql -U postgres -t -c "SHOW wal_level;" 2>&1
+            Write-ForensicsLog "    WAL Level: $($walLevel.Trim())" -Level Info
+            if ($walLevel -notmatch "logical") {
+                Add-Bottleneck -Category "DMS" -Issue "PostgreSQL wal_level not 'logical' - required for DMS CDC" `
+                    -Value "$($walLevel.Trim())" -Threshold "logical" -Impact "High"
+            }
+            
+            # Check replication slots
+            $replSlots = & psql -U postgres -t -c "SELECT COUNT(*) FROM pg_replication_slots;" 2>&1
+            Write-ForensicsLog "    Replication Slots: $($replSlots.Trim())" -Level Info
+            
+            # Check max_replication_slots
+            $maxSlots = & psql -U postgres -t -c "SHOW max_replication_slots;" 2>&1
+            Write-ForensicsLog "    Max Replication Slots: $($maxSlots.Trim())" -Level Info
+            if ($maxSlots -match "^\s*0\s*$") {
+                Add-Bottleneck -Category "DMS" -Issue "PostgreSQL max_replication_slots is 0 - DMS requires at least 1" `
+                    -Value "0" -Threshold ">=1" -Impact "High"
+            }
+            
+            # Check if standby
+            $isStandby = & psql -U postgres -t -c "SELECT pg_is_in_recovery();" 2>&1
+            if ($isStandby -match "t") {
+                $lag = & psql -U postgres -t -c "SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()));" 2>&1
+                Write-ForensicsLog "    Replication Lag: $($lag.Trim()) seconds" -Level Info
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to check PostgreSQL DMS readiness (requires authentication)" -Level Warning
         }
     }
     
@@ -1099,6 +1203,35 @@ db.system.profile.find().sort({millis: -1}).limit(5).forEach(function(op) {
             }
         } catch {
             Write-ForensicsLog "  Unable to query Oracle (requires sqlplus and authentication)" -Level Warning
+        }
+        
+        # DMS-specific checks for Oracle
+        try {
+            Write-ForensicsLog "`n  DMS Migration Readiness:" -Level Info
+            
+            # Check ARCHIVELOG mode
+            $archiveMode = echo "SELECT log_mode FROM v`$database;" | sqlplus -S / as sysdba 2>&1 | Select-String "ARCHIVELOG|NOARCHIVELOG"
+            Write-ForensicsLog "    Archive Log Mode: $archiveMode" -Level Info
+            if ($archiveMode -notmatch "ARCHIVELOG") {
+                Add-Bottleneck -Category "DMS" -Issue "Oracle not in ARCHIVELOG mode - required for DMS CDC" `
+                    -Value "$archiveMode" -Threshold "ARCHIVELOG" -Impact "High"
+            }
+            
+            # Check supplemental logging
+            $suppLog = echo "SELECT supplemental_log_data_min FROM v`$database;" | sqlplus -S / as sysdba 2>&1 | Select-String "YES|NO"
+            Write-ForensicsLog "    Supplemental Logging: $suppLog" -Level Info
+            if ($suppLog -notmatch "YES") {
+                Add-Bottleneck -Category "DMS" -Issue "Oracle supplemental logging not enabled - required for DMS CDC" `
+                    -Value "$suppLog" -Threshold "YES" -Impact "High"
+            }
+            
+            # Check for Data Guard lag
+            $standbyLag = echo "SELECT MAX(ROUND((SYSDATE - applied_time) * 24 * 60)) FROM v`$archived_log WHERE applied = 'YES';" | sqlplus -S / as sysdba 2>&1 | Select-String "\d+"
+            if ($standbyLag) {
+                Write-ForensicsLog "    Standby Apply Lag: $standbyLag minutes" -Level Info
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to check Oracle DMS readiness (requires sqlplus and authentication)" -Level Warning
         }
     }
     
