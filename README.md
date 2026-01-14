@@ -43,7 +43,9 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ### **1. Invoke-WindowsForensics.ps1** (NEW)
 **A complete Windows performance diagnostic tool** - comprehensive forensics with automatic issue detection.
 
-**What it does:**
+<details>
+<summary><strong>What it does</strong></summary>
+
 - Collects performance counters (disk, CPU, memory, network)
 - Performs real disk I/O testing
 - Analyzes CPU usage, threads, and throttling
@@ -51,11 +53,9 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 - **Automatically identifies bottlenecks**
 - **Creates AWS Support case** with all diagnostic data
 
+</details>
+
 **Usage:**
-
-<details>
-<summary><strong>Click to expand usage examples</strong></summary>
-
 ```powershell
 # Quick diagnostics (3 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode Quick
@@ -79,8 +79,6 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .\Invoke-WindowsForensics.ps1 -Mode MemoryOnly
 ```
 
-</details>
-
 **Output:**
 ```
 BOTTLENECKS DETECTED: 3 performance issue(s) found
@@ -99,12 +97,15 @@ AWS Support case created: case-123456789
 ---
 
 ### **2. ps-getperfcounters.ps1** (Legacy)
-Original performance counter collection tool with AWS Support integration.
+<details>
+<summary><strong>Original performance counter collection tool with AWS Support integration</strong></summary>
 
 **Usage:**
 ```powershell
 .\ps-getperfcounters.ps1 -CreateSupportCase -Severity high
 ```
+
+</details>
 
 ---
 
@@ -219,29 +220,43 @@ aws support describe-services
 
 ## 📖 **Examples**
 
-### **Example 1: Quick Health Check**
+<details>
+<summary><strong>Example 1: Quick Health Check</strong></summary>
+
 ```powershell
 .\Invoke-WindowsForensics.ps1 -Mode Quick
 ```
 Output: 3-minute assessment with automatic bottleneck detection
 
-### **Example 2: Production Issue with Auto-Ticket**
+</details>
+
+<details>
+<summary><strong>Example 2: Production Issue with Auto-Ticket</strong></summary>
+
 ```powershell
 .\Invoke-WindowsForensics.ps1 -Mode Deep -CreateSupportCase -Severity urgent
 ```
 Output: Comprehensive diagnostics + AWS Support case with all data attached
 
-### **Example 3: Disk Performance Testing**
+</details>
+
+<details>
+<summary><strong>Example 3: Disk Performance Testing</strong></summary>
+
 ```powershell
 .\Invoke-WindowsForensics.ps1 -Mode DiskOnly -DiskTestSize 10
 ```
 Output: Detailed disk I/O testing with 10GB test file
 
+</details>
+
 ---
 
 ## 🛠️ **Troubleshooting**
 
-### **Performance Counters Not Working**
+<details>
+<summary><strong>Performance Counters Not Working</strong></summary>
+
 The tool automatically resets counters, but if issues persist:
 ```powershell
 cd c:\windows\system32
@@ -251,16 +266,26 @@ lodctr /R
 winmgmt.exe /resyncperf
 ```
 
-### **AWS Support Case Creation Fails**
+</details>
+
+<details>
+<summary><strong>AWS Support Case Creation Fails</strong></summary>
+
 - Verify AWS CLI: `aws --version`
 - Check credentials: `aws sts get-caller-identity`
 - Ensure Support plan is active (Business or Enterprise)
 
-### **Permission Denied Errors**
+</details>
+
+<details>
+<summary><strong>Permission Denied Errors</strong></summary>
+
 Run PowerShell as Administrator:
 ```powershell
 Start-Process powershell -Verb runAs
 ```
+
+</details>
 
 ---
 
