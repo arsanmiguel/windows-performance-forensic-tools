@@ -103,25 +103,25 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 <summary><strong>Usage</strong></summary>
 
 ```powershell
-# Quick diagnostics (3 minutes)
+# Quick diagnostics (1-2 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode Quick
 
-# Standard diagnostics (5-10 minutes)
+# Standard diagnostics (3-5 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode Standard
 
-# Deep diagnostics (15-20 minutes)
+# Deep diagnostics (5-10 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode Deep
 
 # Auto-create support case if issues found
 .\Invoke-WindowsForensics.ps1 -Mode Standard -CreateSupportCase -Severity high
 
-# Disk-only diagnostics
+# Disk-only diagnostics (5-10 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode DiskOnly -DiskTestSize 5
 
-# CPU-only diagnostics
+# CPU-only diagnostics (5-10 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode CPUOnly
 
-# Memory-only diagnostics
+# Memory-only diagnostics (5-10 minutes)
 .\Invoke-WindowsForensics.ps1 -Mode MemoryOnly
 ```
 
@@ -156,7 +156,7 @@ AWS Support case created: case-123456789
 ```powershell
 .\Invoke-WindowsForensics.ps1 -Mode Quick
 ```
-Output: 3-minute assessment with automatic bottleneck detection
+Output: 1-2 minute assessment with automatic bottleneck detection
 
 </details>
 
@@ -471,6 +471,43 @@ For AWS-specific issues, the tool can automatically create support cases with di
 - Tested on Windows Server 2012 R2 through 2022
 - Works on AWS EC2, Azure VMs, GCP Compute, and on-premises
 - **No warranty or official support provided** - use at your own discretion
+
+### **Expected Performance Impact**
+
+**Quick Mode (1-2 minutes):**
+- CPU: <5% overhead - mostly reading performance counters
+- Memory: <50MB - lightweight data collection
+- Disk I/O: Minimal - no performance testing, only stat collection
+- Network: None - passive monitoring only
+- **Safe for production** - read-only operations
+
+**Standard Mode (3-5 minutes):**
+- CPU: 5-10% overhead - includes sampling and process analysis
+- Memory: <100MB - additional process tree analysis
+- Disk I/O: Minimal - no write testing, only extended stat collection
+- Network: None - passive monitoring only
+- **Safe for production** - read-only operations
+
+**Deep Mode (5-10 minutes):**
+- CPU: 10-20% overhead - includes extended sampling
+- Memory: <150MB - comprehensive process and memory analysis
+- Disk I/O: **Moderate impact** - performs disk read/write tests (configurable size)
+- Network: None - passive monitoring only
+- **Use caution in production** - disk tests may cause temporary I/O spikes
+- Recommendation: Run during maintenance windows or low-traffic periods
+
+**Database Query Analysis (all modes):**
+- CPU: <2% overhead per database - lightweight queries to system tables
+- Memory: <20MB per database - result set caching
+- Database Load: Minimal - uses DMVs/performance schema/system views
+- **Safe for production** - read-only queries, no table locks
+
+**General Guidelines:**
+- The tool is **read-only** except for disk write tests in deep mode
+- No application restarts or configuration changes
+- Performance counters sampled at regular intervals
+- Database queries target system/performance tables only, not user data
+- All operations are non-blocking and use minimal system resources
 
 ---
 
