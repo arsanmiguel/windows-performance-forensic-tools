@@ -6,6 +6,7 @@ A comprehensive PowerShell-based diagnostic tool for Windows servers that automa
 
 **Key Features:**
 - ✅ Comprehensive performance forensics (CPU, Memory, Disk, Network, Database)
+- ✅ **Storage profiling** (partition schemes, dynamic disks, tiering, SMART health, SAN/iSCSI, EBS/Azure)
 - ✅ **AWS DMS SOURCE DATABASE diagnostics** (binary logging, replication lag, connection analysis)
 - ✅ Automated bottleneck detection
 - ✅ CPU forensics (thread analysis, throttling detection, context switches, processor queue)
@@ -94,6 +95,21 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
     - AlwaysOn replica lag
     
     </details>
+- **Comprehensive storage profiling:**
+  - Partition scheme analysis (GPT vs MBR vs RAW)
+  - Partition type detection (ESP, MSR, Recovery, Basic, LDM, Storage Spaces)
+  - Boot configuration (UEFI vs Legacy BIOS, Secure Boot status)
+  - **Dynamic disk analysis** (mirrored, striped, spanned, RAID-5 volumes)
+  - **Degraded dynamic volume detection** with health status
+  - Storage tiering (SSD vs HDD vs NVMe detection)
+  - Filesystem detection (NTFS, ReFS, Dev Drives)
+  - AWS EBS volume detection and optimization recommendations (gp2→gp3, io1→io2)
+  - Azure managed disk detection
+  - SMART/reliability monitoring (health, wear level, temperature, errors)
+  - Capacity profiling (volume usage, top directories, large files, Windows components)
+  - Filesystem fragmentation analysis
+  - SAN/iSCSI detection (iSCSI sessions/targets, Fibre Channel HBAs, MPIO)
+  - Storage performance baseline (sequential I/O, random IOPS)
 - **Automatically identifies bottlenecks**
 - **Creates AWS Support case** with all diagnostic data
 
@@ -304,6 +320,23 @@ The tool automatically detects:
 </details>
 
 <details>
+<summary><strong>Storage Issues</strong></summary>
+
+- **MBR partition on >2TB disk** (only 2TB usable - data loss risk)
+- **Degraded dynamic disk volumes** (mirrored/RAID-5 with failed member)
+- **Dynamic disk health issues** (status not OK)
+- **RAW/uninitialized disks** detected
+- Disk health issues (SMART failures, unhealthy status)
+- High SSD wear level (>80%)
+- High disk temperature (>60°C)
+- Storage Spaces pool health issues
+- AWS EBS gp2 volumes detected (recommend upgrade to gp3)
+- Failed iSCSI sessions
+- MPIO path failures
+
+</details>
+
+<details>
 <summary><strong>CPU Issues</strong></summary>
 
 - High CPU utilization (>80%)
@@ -443,6 +476,57 @@ Start-Process powershell -Verb runAs
 
 </details>
 
+<details>
+<summary><strong>Storage Profiling</strong></summary>
+
+The script uses native Windows tools and cmdlets for storage analysis:
+
+| Cmdlet/Tool | Purpose |
+|-------------|---------|
+| Get-PhysicalDisk | Physical disk information and health |
+| Get-Disk | Disk configuration, partition style (GPT/MBR/RAW) |
+| Get-Partition | Partition layout and types (ESP, MSR, Recovery, LDM) |
+| Get-Volume | Volume information, filesystem type |
+| Get-StoragePool | Storage Spaces pools |
+| Get-StorageReliabilityCounter | SMART/reliability data (wear, temperature, errors) |
+| Get-IscsiSession | iSCSI sessions |
+| Get-IscsiTarget | iSCSI targets |
+| diskpart | Dynamic disk/volume details (mirrored, striped, RAID-5) |
+| Win32_DiskPartition | Dynamic disk detection (Logical Disk Manager) |
+| bcdedit | Boot configuration (UEFI/BIOS detection) |
+
+**Partition Scheme Detection:**
+- **GPT** (GUID Partition Table) - Modern, UEFI, supports >2TB
+- **MBR** (Master Boot Record) - Legacy, BIOS, 2TB limit
+- **RAW** - Uninitialized disk (warning generated)
+
+**Partition Type Detection:**
+- EFI System Partition (ESP)
+- Microsoft Reserved (MSR)
+- Basic Data
+- Windows Recovery
+- Storage Spaces
+- LDM Metadata/Data (dynamic disks)
+
+**Filesystem Detection:**
+- NTFS, ReFS, FAT32, exFAT
+- Dev Drives (Windows 11 22H2+ performance volumes)
+
+**Dynamic Disk Analysis:**
+- Detects mirrored, striped, spanned, and RAID-5 volumes
+- Identifies degraded or failed dynamic volumes
+- Reports disk health status via WMI
+
+**For SAN environments:**
+- MPIO configuration: `Get-MSDSMAutomaticClaimSettings`
+- Fibre Channel: WMI class `MSFC_FCAdapterHBAAttributes`
+
+**AWS EBS analysis requires:**
+- AWS CLI installed and configured
+- IAM permissions for `ec2:DescribeVolumes`
+
+</details>
+
 ---
 
 ## 📦 **What's Included**
@@ -513,6 +597,16 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ## 📝 **Version History**
 
+- **v2.1** (February 2026) - Added comprehensive storage profiling
+  - Partition scheme analysis (GPT/MBR/RAW with warnings)
+  - Partition type detection (ESP, MSR, Recovery, LDM, Storage Spaces)
+  - Boot configuration (UEFI vs Legacy BIOS, Secure Boot)
+  - Dynamic disk analysis (mirrored, striped, spanned, RAID-5)
+  - Degraded volume detection
+  - Filesystem detection (NTFS, ReFS, Dev Drives)
+  - SMART/reliability monitoring
+  - SAN/iSCSI/MPIO detection
+  - AWS EBS and Azure disk optimization recommendations
 - **v2.0** (January 2026) - Complete rewrite with unified forensics tool, automatic bottleneck detection, CPU/Memory forensics
 - **v1.5** (January 2026) - Added AWS Support API integration
 - **v1.0** (February 2022) - Initial release

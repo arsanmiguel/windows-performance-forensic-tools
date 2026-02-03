@@ -657,6 +657,649 @@ Function Get-MemoryForensics {
 
 #endregion
 
+#region Storage Profiling
+
+Function Get-StorageProfile {
+    Write-ForensicsHeader "STORAGE PROFILING"
+    
+    Write-ForensicsLog "Performing comprehensive storage analysis..." -Level Info
+    
+    try {
+        # ==========================================================================
+        # STORAGE TOPOLOGY
+        # ==========================================================================
+        Write-ForensicsLog "`n--- STORAGE TOPOLOGY ---" -Level Info
+        
+        # Physical disks
+        Write-ForensicsLog "`nPhysical Disks:" -Level Info
+        $physicalDisks = Get-PhysicalDisk | Select-Object FriendlyName, MediaType, BusType, Size, HealthStatus, OperationalStatus
+        foreach ($disk in $physicalDisks) {
+            $sizeGB = [math]::Round($disk.Size / 1GB, 2)
+            Write-ForensicsLog "  $($disk.FriendlyName): $($disk.MediaType), $($disk.BusType), ${sizeGB}GB, Health: $($disk.HealthStatus)" -Level Info
+        }
+        
+        # Disks and Partition Schemes
+        Write-ForensicsLog "`nDisk Partition Schemes:" -Level Info
+        
+        $mbrCount = 0
+        $gptCount = 0
+        $rawCount = 0
+        
+        Get-Disk | ForEach-Object {
+            $disk = $_
+            $sizeGB = [math]::Round($disk.Size / 1GB, 2)
+            $partStyle = $disk.PartitionStyle
+            $bootType = if ($disk.IsBoot) { "Boot" } else { "" }
+            $systemType = if ($disk.IsSystem) { "System" } else { "" }
+            $busType = $disk.BusType
+            $diskStatus = $disk.OperationalStatus
+            $healthStatus = $disk.HealthStatus
+            
+            # Count partition styles
+            switch ($partStyle) {
+                "MBR" { $mbrCount++ }
+                "GPT" { $gptCount++ }
+                "RAW" { $rawCount++ }
+            }
+            
+            Write-ForensicsLog "  Disk $($disk.Number): $($disk.FriendlyName)" -Level Info
+            Write-ForensicsLog "    Size: ${sizeGB}GB | Partition Style: $partStyle | Bus: $busType" -Level Info
+            Write-ForensicsLog "    Status: $diskStatus | Health: $healthStatus | $bootType $systemType" -Level Info
+            
+            # Warn about MBR on large disks (>2TB limit)
+            if ($partStyle -eq "MBR" -and $disk.Size -gt 2TB) {
+                Write-ForensicsLog "    WARNING: MBR partition style on disk >2TB - only 2TB usable!" -Level Warning
+                Add-Bottleneck -Category "Storage" -Issue "MBR partition on disk >2TB (data loss risk)" `
+                    -Value "MBR on ${sizeGB}GB disk" -Threshold "GPT" -Impact "High"
+            }
+            
+            # Warn about RAW disks
+            if ($partStyle -eq "RAW") {
+                Write-ForensicsLog "    WARNING: Disk is RAW (uninitialized)" -Level Warning
+            }
+            
+            # Check disk health
+            if ($healthStatus -ne "Healthy") {
+                Add-Bottleneck -Category "Storage" -Issue "Disk $($disk.Number) health issue" `
+                    -Value "$healthStatus" -Threshold "Healthy" -Impact "Critical"
+            }
+            
+            # Get detailed partition information
+            Get-Partition -DiskNumber $disk.Number -ErrorAction SilentlyContinue | ForEach-Object {
+                $partition = $_
+                $partSizeGB = [math]::Round($partition.Size / 1GB, 2)
+                $partType = $partition.Type
+                $partGuid = $partition.GptType
+                
+                # Translate partition type
+                $partTypeName = switch ($partType) {
+                    "System" { "EFI System Partition (ESP)" }
+                    "Reserved" { "Microsoft Reserved (MSR)" }
+                    "Basic" { "Basic Data" }
+                    "Recovery" { "Windows Recovery" }
+                    "Unknown" { 
+                        # Check GPT GUID for more detail
+                        switch ($partGuid) {
+                            "{e3c9e316-0b5c-4db8-817d-f92df00215ae}" { "Microsoft Reserved (MSR)" }
+                            "{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}" { "Basic Data" }
+                            "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}" { "EFI System Partition" }
+                            "{de94bba4-06d1-4d40-a16a-bfd50179d6ac}" { "Windows Recovery" }
+                            "{e75caf8f-f680-4cee-afa3-b001e56efc2d}" { "Storage Spaces" }
+                            "{5808c8aa-7e8f-42e0-85d2-e1e90434cfb3}" { "LDM Metadata" }
+                            "{af9b60a0-1431-4f62-bc68-3311714a69ad}" { "LDM Data" }
+                            "{db97dba9-0840-4bae-97f0-ffb9a327c7e1}" { "Windows RE Tools" }
+                            default { "Unknown ($partGuid)" }
+                        }
+                    }
+                    default { $partType }
+                }
+                
+                $volume = Get-Volume -Partition $partition -ErrorAction SilentlyContinue
+                if ($volume -and $volume.DriveLetter) {
+                    Write-ForensicsLog "    Partition $($partition.PartitionNumber): $($volume.DriveLetter): - $partTypeName - $($volume.FileSystem) - ${partSizeGB}GB" -Level Info
+                } else {
+                    Write-ForensicsLog "    Partition $($partition.PartitionNumber): (No letter) - $partTypeName - ${partSizeGB}GB" -Level Info
+                }
+            }
+            Write-ForensicsLog "" -Level Info
+        }
+        
+        # Partition scheme summary
+        Write-ForensicsLog "Partition Scheme Summary:" -Level Info
+        Write-ForensicsLog "  GPT Disks: $gptCount (modern, UEFI compatible, >2TB support)" -Level Info
+        Write-ForensicsLog "  MBR Disks: $mbrCount (legacy, BIOS, 2TB max)" -Level Info
+        if ($rawCount -gt 0) {
+            Write-ForensicsLog "  RAW Disks: $rawCount (uninitialized)" -Level Warning
+        }
+        
+        # Check boot mode (UEFI vs Legacy BIOS)
+        Write-ForensicsLog "`nBoot Configuration:" -Level Info
+        try {
+            $firmware = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State" -ErrorAction SilentlyContinue)
+            if ($firmware) {
+                $secureBoot = if ($firmware.UEFISecureBootEnabled -eq 1) { "Enabled" } else { "Disabled" }
+                Write-ForensicsLog "  Firmware: UEFI (Secure Boot: $secureBoot)" -Level Info
+            } else {
+                # Check alternative method
+                $env:firmware_type = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SystemInformation" -ErrorAction SilentlyContinue).SystemBiosVersion
+                if (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot") {
+                    Write-ForensicsLog "  Firmware: UEFI" -Level Info
+                } else {
+                    Write-ForensicsLog "  Firmware: Legacy BIOS" -Level Info
+                }
+            }
+        } catch {
+            # Fallback detection using bcdedit
+            try {
+                $bcdedit = bcdedit /enum firmware 2>&1
+                if ($bcdedit -match "Windows Boot Manager") {
+                    Write-ForensicsLog "  Firmware: UEFI" -Level Info
+                } else {
+                    Write-ForensicsLog "  Firmware: Legacy BIOS (or unable to determine)" -Level Info
+                }
+            } catch {
+                Write-ForensicsLog "  Firmware: Unable to determine" -Level Warning
+            }
+        }
+        
+        # ReFS detection (modern Windows Server filesystem)
+        Write-ForensicsLog "`nFilesystem Types:" -Level Info
+        $filesystems = Get-Volume | Where-Object { $_.DriveType -eq "Fixed" } | Group-Object FileSystem
+        foreach ($fs in $filesystems) {
+            $fsName = if ($fs.Name) { $fs.Name } else { "Unknown" }
+            Write-ForensicsLog "  $fsName : $($fs.Count) volume(s)" -Level Info
+            
+            # Note about ReFS
+            if ($fsName -eq "ReFS") {
+                Write-ForensicsLog "    ReFS detected - Resilient File System (integrity streams, auto-repair)" -Level Info
+            }
+        }
+        
+        # Dev Drive detection (Windows 11 22H2+ / Server 2025)
+        try {
+            $devDrives = Get-Volume | Where-Object { $_.FileSystemType -eq "ReFS" -and $_.AllocationUnitSize -eq 65536 }
+            if ($devDrives) {
+                Write-ForensicsLog "`nDev Drives (Performance Mode Volumes):" -Level Info
+                foreach ($dd in $devDrives) {
+                    Write-ForensicsLog "  $($dd.DriveLetter): - Dev Drive (ReFS with 64K allocation)" -Level Info
+                }
+            }
+        } catch {
+            # Dev Drive detection not available on older Windows
+        }
+        
+        # Storage Spaces detection
+        Write-ForensicsLog "`nStorage Spaces:" -Level Info
+        $storagePools = Get-StoragePool -ErrorAction SilentlyContinue | Where-Object { $_.FriendlyName -ne "Primordial" }
+        if ($storagePools) {
+            foreach ($pool in $storagePools) {
+                Write-ForensicsLog "  Pool: $($pool.FriendlyName) - Health: $($pool.HealthStatus) - Size: $([math]::Round($pool.Size / 1GB, 2))GB" -Level Info
+                
+                Get-VirtualDisk -StoragePool $pool -ErrorAction SilentlyContinue | ForEach-Object {
+                    Write-ForensicsLog "    Virtual Disk: $($_.FriendlyName) - $($_.ResiliencySettingName) - Health: $($_.HealthStatus)" -Level Info
+                }
+            }
+        } else {
+            Write-ForensicsLog "  No Storage Spaces configured" -Level Info
+        }
+        
+        # Dynamic Disks Detection and Analysis
+        Write-ForensicsLog "`nDynamic Disks:" -Level Info
+        
+        # Check for dynamic disks using WMI
+        $dynamicDisksWmi = Get-WmiObject -Class Win32_DiskPartition -ErrorAction SilentlyContinue | 
+            Where-Object { $_.Type -like "*Logical Disk Manager*" }
+        
+        if ($dynamicDisksWmi) {
+            Write-ForensicsLog "  Dynamic disk configuration detected" -Level Info
+            
+            # Get dynamic volumes (mirrored, striped, spanned, RAID-5)
+            $ldmVolumes = Get-WmiObject -Class Win32_Volume -ErrorAction SilentlyContinue | 
+                Where-Object { $_.DriveType -eq 3 }
+            
+            foreach ($vol in $ldmVolumes) {
+                if ($vol.DriveLetter) {
+                    $volSizeGB = [math]::Round($vol.Capacity / 1GB, 2)
+                    $volFreeGB = [math]::Round($vol.FreeSpace / 1GB, 2)
+                    Write-ForensicsLog "  Volume $($vol.DriveLetter) - $($vol.FileSystem) - ${volSizeGB}GB (${volFreeGB}GB free)" -Level Info
+                }
+            }
+            
+            # Use diskpart to get detailed dynamic disk info
+            Write-ForensicsLog "`n  Dynamic Volume Details (via diskpart):" -Level Info
+            try {
+                $diskpartScript = @"
+list volume
+"@
+                $diskpartOutput = $diskpartScript | diskpart 2>&1
+                $diskpartOutput | Where-Object { $_ -match "Mirror|Stripe|Span|RAID" } | ForEach-Object {
+                    Write-ForensicsLog "    $_" -Level Info
+                }
+                
+                # Check for degraded/failed volumes
+                $degradedVolumes = $diskpartOutput | Where-Object { $_ -match "Failed|Degraded|At Risk|Unknown" }
+                if ($degradedVolumes) {
+                    Write-ForensicsLog "`n  WARNING: Degraded/Failed dynamic volumes detected:" -Level Warning
+                    $degradedVolumes | ForEach-Object {
+                        Write-ForensicsLog "    $_" -Level Warning
+                    }
+                    Add-Bottleneck -Category "Storage" -Issue "Degraded dynamic disk volume detected" `
+                        -Value "Degraded/Failed" -Threshold "Healthy" -Impact "Critical"
+                }
+            } catch {
+                Write-ForensicsLog "    Unable to query diskpart: $_" -Level Warning
+            }
+            
+            # Check dynamic disk health via WMI
+            Write-ForensicsLog "`n  Dynamic Disk Health:" -Level Info
+            Get-WmiObject -Class Win32_DiskDrive -ErrorAction SilentlyContinue | ForEach-Object {
+                $disk = $_
+                $status = $disk.Status
+                $mediaType = $disk.MediaType
+                
+                Write-ForensicsLog "    $($disk.DeviceID): Status=$status, MediaType=$mediaType" -Level Info
+                
+                if ($status -ne "OK" -and $status -ne $null) {
+                    Add-Bottleneck -Category "Storage" -Issue "Dynamic disk health issue on $($disk.DeviceID)" `
+                        -Value "$status" -Threshold "OK" -Impact "High"
+                }
+            }
+            
+        } else {
+            Write-ForensicsLog "  No dynamic disk configuration detected (using Basic disks)" -Level Info
+        }
+        
+        # Software RAID via Storage Spaces (modern alternative to dynamic disks)
+        Write-ForensicsLog "`nSoftware RAID / Mirrored Volumes:" -Level Info
+        
+        # Check for mirrored volumes using vssadmin (works for both dynamic and Storage Spaces)
+        try {
+            $vssOutput = vssadmin list volumes 2>&1
+            $mirroredInfo = $vssOutput | Where-Object { $_ -match "Mirror|RAID|Parity" }
+            if ($mirroredInfo) {
+                Write-ForensicsLog "  Mirrored/RAID volumes found:" -Level Info
+                $mirroredInfo | ForEach-Object { Write-ForensicsLog "    $_" -Level Info }
+            } else {
+                Write-ForensicsLog "  No mirrored/RAID volumes detected" -Level Info
+            }
+        } catch {
+            Write-ForensicsLog "  Unable to query volume shadow copy service" -Level Warning
+        }
+        
+        # ==========================================================================
+        # STORAGE TIERING (SSD vs HDD vs NVMe)
+        # ==========================================================================
+        Write-ForensicsLog "`n--- STORAGE TIERING ---" -Level Info
+        
+        $ssdCount = 0
+        $hddCount = 0
+        $nvmeCount = 0
+        $unknownCount = 0
+        
+        Write-ForensicsLog "`nDrive Types:" -Level Info
+        foreach ($disk in $physicalDisks) {
+            $sizeGB = [math]::Round($disk.Size / 1GB, 2)
+            
+            switch ($disk.MediaType) {
+                "SSD" {
+                    if ($disk.BusType -eq "NVMe") {
+                        Write-ForensicsLog "  $($disk.FriendlyName): NVMe SSD - ${sizeGB}GB" -Level Info
+                        $nvmeCount++
+                    } else {
+                        Write-ForensicsLog "  $($disk.FriendlyName): SATA SSD - ${sizeGB}GB" -Level Info
+                        $ssdCount++
+                    }
+                }
+                "HDD" {
+                    Write-ForensicsLog "  $($disk.FriendlyName): HDD (Rotational) - ${sizeGB}GB" -Level Info
+                    $hddCount++
+                }
+                default {
+                    Write-ForensicsLog "  $($disk.FriendlyName): Unknown Type - ${sizeGB}GB" -Level Info
+                    $unknownCount++
+                }
+            }
+        }
+        
+        Write-ForensicsLog "`nStorage Tier Summary: NVMe=$nvmeCount, SSD=$ssdCount, HDD=$hddCount, Unknown=$unknownCount" -Level Info
+        
+        # Storage tiering recommendations
+        if ($hddCount -gt 0 -and $ssdCount -eq 0 -and $nvmeCount -eq 0) {
+            Write-ForensicsLog "  Recommendation: Consider adding SSD/NVMe for improved performance" -Level Warning
+        }
+        
+        # ==========================================================================
+        # AWS EBS / CLOUD STORAGE DETECTION
+        # ==========================================================================
+        Write-ForensicsLog "`n--- CLOUD STORAGE DETECTION ---" -Level Info
+        
+        # Check if running on EC2
+        $instanceId = $null
+        try {
+            $instanceId = Invoke-RestMethod -Uri "http://169.254.169.254/latest/meta-data/instance-id" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        } catch {
+            # Not on AWS
+        }
+        
+        if ($instanceId) {
+            Write-ForensicsLog "`nAWS EC2 Instance Detected - Analyzing EBS Volumes:" -Level Info
+            
+            $region = $null
+            try {
+                $az = Invoke-RestMethod -Uri "http://169.254.169.254/latest/meta-data/placement/availability-zone" -TimeoutSec 2
+                $region = $az -replace '[a-z]$', ''
+            } catch {}
+            
+            Write-ForensicsLog "  Instance ID: $instanceId" -Level Info
+            Write-ForensicsLog "  Region: $region" -Level Info
+            
+            # Try AWS CLI for EBS details
+            try {
+                $awsCheck = Get-Command aws -ErrorAction SilentlyContinue
+                if ($awsCheck) {
+                    Write-ForensicsLog "`n  EBS Volumes (via AWS CLI):" -Level Info
+                    
+                    $ebsJson = aws ec2 describe-volumes --filters "Name=attachment.instance-id,Values=$instanceId" `
+                        --query 'Volumes[*].{ID:VolumeId,Type:VolumeType,Size:Size,IOPS:Iops,Throughput:Throughput,State:State,Device:Attachments[0].Device}' `
+                        --output json --region $region 2>&1
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        $ebsVolumes = $ebsJson | ConvertFrom-Json
+                        foreach ($vol in $ebsVolumes) {
+                            Write-ForensicsLog "    $($vol.ID): $($vol.Type), $($vol.Size)GB, IOPS: $($vol.IOPS), Device: $($vol.Device)" -Level Info
+                        }
+                        
+                        # Check for optimization opportunities
+                        Write-ForensicsLog "`n  EBS Optimization Analysis:" -Level Info
+                        
+                        $gp2Count = ($ebsVolumes | Where-Object { $_.Type -eq "gp2" }).Count
+                        if ($gp2Count -gt 0) {
+                            Write-ForensicsLog "    - Found $gp2Count gp2 volume(s) - consider upgrading to gp3 for cost savings" -Level Warning
+                            Add-Bottleneck -Category "Storage" -Issue "gp2 volumes detected - gp3 recommended" `
+                                -Value "$gp2Count gp2 volumes" -Threshold "gp3" -Impact "Low"
+                        }
+                        
+                        $io1Count = ($ebsVolumes | Where-Object { $_.Type -eq "io1" }).Count
+                        if ($io1Count -gt 0) {
+                            Write-ForensicsLog "    - Found $io1Count io1 volume(s) - consider upgrading to io2 for better durability" -Level Info
+                        }
+                    }
+                } else {
+                    Write-ForensicsLog "  AWS CLI not available for detailed EBS analysis" -Level Warning
+                }
+            } catch {
+                Write-ForensicsLog "  Unable to query EBS volumes: $_" -Level Warning
+            }
+            
+            # Check EBS-optimized status
+            try {
+                $ebsOptimized = Invoke-RestMethod -Uri "http://169.254.169.254/latest/meta-data/ebs-optimized" -TimeoutSec 2 -ErrorAction SilentlyContinue
+                Write-ForensicsLog "  EBS Optimized: $ebsOptimized" -Level Info
+            } catch {}
+            
+        } else {
+            Write-ForensicsLog "  Not running on AWS EC2" -Level Info
+            
+            # Check for Azure
+            try {
+                $azureMetadata = Invoke-RestMethod -Uri "http://169.254.169.254/metadata/instance?api-version=2021-02-01" `
+                    -Headers @{"Metadata"="true"} -TimeoutSec 2 -ErrorAction SilentlyContinue
+                if ($azureMetadata) {
+                    Write-ForensicsLog "`nAzure VM Detected:" -Level Info
+                    Write-ForensicsLog "  VM Size: $($azureMetadata.compute.vmSize)" -Level Info
+                    Write-ForensicsLog "  Location: $($azureMetadata.compute.location)" -Level Info
+                }
+            } catch {}
+        }
+        
+        # ==========================================================================
+        # SMART HEALTH STATUS
+        # ==========================================================================
+        Write-ForensicsLog "`n--- SMART HEALTH STATUS ---" -Level Info
+        
+        Write-ForensicsLog "`nDisk Health Status:" -Level Info
+        foreach ($disk in $physicalDisks) {
+            $health = $disk.HealthStatus
+            $operational = $disk.OperationalStatus
+            
+            Write-ForensicsLog "  $($disk.FriendlyName): Health=$health, Operational=$operational" -Level Info
+            
+            if ($health -ne "Healthy") {
+                Add-Bottleneck -Category "Storage" -Issue "Disk health issue on $($disk.FriendlyName)" `
+                    -Value "$health" -Threshold "Healthy" -Impact "Critical"
+            }
+            
+            # Get reliability counters
+            $reliability = Get-PhysicalDisk -FriendlyName $disk.FriendlyName | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue
+            if ($reliability) {
+                Write-ForensicsLog "    Temperature: $($reliability.Temperature)°C" -Level Info
+                Write-ForensicsLog "    Wear: $($reliability.Wear)%" -Level Info
+                Write-ForensicsLog "    Read Errors: $($reliability.ReadErrorsTotal)" -Level Info
+                Write-ForensicsLog "    Write Errors: $($reliability.WriteErrorsTotal)" -Level Info
+                Write-ForensicsLog "    Power On Hours: $($reliability.PowerOnHours)" -Level Info
+                
+                if ($reliability.Wear -gt 80) {
+                    Add-Bottleneck -Category "Storage" -Issue "High SSD wear on $($disk.FriendlyName)" `
+                        -Value "$($reliability.Wear)%" -Threshold "80%" -Impact "High"
+                }
+                
+                if ($reliability.Temperature -gt 60) {
+                    Add-Bottleneck -Category "Storage" -Issue "High disk temperature on $($disk.FriendlyName)" `
+                        -Value "$($reliability.Temperature)°C" -Threshold "60°C" -Impact "Medium"
+                }
+            }
+        }
+        
+        # ==========================================================================
+        # CAPACITY PROFILING
+        # ==========================================================================
+        Write-ForensicsLog "`n--- CAPACITY PROFILING ---" -Level Info
+        
+        # Volume capacity
+        Write-ForensicsLog "`nVolume Capacity:" -Level Info
+        Get-Volume | Where-Object { $_.DriveType -eq "Fixed" -and $_.DriveLetter } | ForEach-Object {
+            $vol = $_
+            $totalGB = [math]::Round($vol.Size / 1GB, 2)
+            $freeGB = [math]::Round($vol.SizeRemaining / 1GB, 2)
+            $usedPercent = [math]::Round((($vol.Size - $vol.SizeRemaining) / $vol.Size) * 100, 2)
+            
+            Write-ForensicsLog "  $($vol.DriveLetter): $($vol.FileSystemLabel) - Used: $usedPercent% ($($totalGB - $freeGB)GB / ${totalGB}GB)" -Level Info
+            
+            if ($usedPercent -gt 90) {
+                Add-Bottleneck -Category "Storage" -Issue "Low disk space on $($vol.DriveLetter):" `
+                    -Value "$usedPercent%" -Threshold "90%" -Impact "High"
+            }
+        }
+        
+        # Top space consumers
+        Write-ForensicsLog "`nTop 10 Directories by Size (C:\):" -Level Info
+        $topDirs = Get-ChildItem -Path "C:\" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $size = (Get-ChildItem -Path $_.FullName -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+            [PSCustomObject]@{
+                Path = $_.FullName
+                SizeGB = [math]::Round($size / 1GB, 2)
+            }
+        } | Sort-Object SizeGB -Descending | Select-Object -First 10
+        
+        foreach ($dir in $topDirs) {
+            Write-ForensicsLog "  $($dir.Path): $($dir.SizeGB) GB" -Level Info
+        }
+        
+        # Large files
+        Write-ForensicsLog "`nLarge Files (>1GB) on C:\:" -Level Info
+        Get-ChildItem -Path "C:\" -Recurse -File -ErrorAction SilentlyContinue | 
+            Where-Object { $_.Length -gt 1GB } | 
+            Sort-Object Length -Descending | 
+            Select-Object -First 10 | ForEach-Object {
+                Write-ForensicsLog "  $($_.FullName): $([math]::Round($_.Length / 1GB, 2)) GB" -Level Info
+            }
+        
+        # Windows component sizes
+        Write-ForensicsLog "`nWindows Component Sizes:" -Level Info
+        $windowsFolders = @(
+            "C:\Windows\WinSxS",
+            "C:\Windows\Installer",
+            "C:\Windows\SoftwareDistribution",
+            "C:\Windows\Temp",
+            "$env:TEMP"
+        )
+        
+        foreach ($folder in $windowsFolders) {
+            if (Test-Path $folder) {
+                $size = (Get-ChildItem -Path $folder -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+                Write-ForensicsLog "  $folder : $([math]::Round($size / 1GB, 2)) GB" -Level Info
+            }
+        }
+        
+        # ==========================================================================
+        # FILESYSTEM FRAGMENTATION
+        # ==========================================================================
+        Write-ForensicsLog "`n--- FILESYSTEM FRAGMENTATION ---" -Level Info
+        
+        Get-Volume | Where-Object { $_.DriveType -eq "Fixed" -and $_.DriveLetter } | ForEach-Object {
+            $vol = $_
+            Write-ForensicsLog "`nFragmentation Analysis for $($vol.DriveLetter):" -Level Info
+            
+            try {
+                $defragInfo = Optimize-Volume -DriveLetter $vol.DriveLetter -Analyze -Verbose 4>&1
+                $defragInfo | ForEach-Object { Write-ForensicsLog "  $_" -Level Info }
+            } catch {
+                Write-ForensicsLog "  Unable to analyze fragmentation: $_" -Level Warning
+            }
+        }
+        
+        # ==========================================================================
+        # iSCSI / SAN DETECTION
+        # ==========================================================================
+        Write-ForensicsLog "`n--- SAN/iSCSI DETECTION ---" -Level Info
+        
+        # iSCSI connections
+        Write-ForensicsLog "`niSCSI Sessions:" -Level Info
+        $iscsiSessions = Get-IscsiSession -ErrorAction SilentlyContinue
+        if ($iscsiSessions) {
+            foreach ($session in $iscsiSessions) {
+                Write-ForensicsLog "  Target: $($session.TargetNodeAddress) - Connection: $($session.ConnectionIdentifier)" -Level Info
+            }
+        } else {
+            Write-ForensicsLog "  No active iSCSI sessions" -Level Info
+        }
+        
+        # iSCSI targets
+        Write-ForensicsLog "`niSCSI Targets:" -Level Info
+        $iscsiTargets = Get-IscsiTarget -ErrorAction SilentlyContinue
+        if ($iscsiTargets) {
+            foreach ($target in $iscsiTargets) {
+                Write-ForensicsLog "  $($target.NodeAddress) - Connected: $($target.IsConnected)" -Level Info
+            }
+        } else {
+            Write-ForensicsLog "  No iSCSI targets configured" -Level Info
+        }
+        
+        # Fibre Channel HBAs
+        Write-ForensicsLog "`nFibre Channel HBAs:" -Level Info
+        $fcHbas = Get-WmiObject -Class MSFC_FCAdapterHBAAttributes -Namespace "root\WMI" -ErrorAction SilentlyContinue
+        if ($fcHbas) {
+            foreach ($hba in $fcHbas) {
+                Write-ForensicsLog "  $($hba.Manufacturer) - WWPN: $($hba.NodeWWN)" -Level Info
+            }
+        } else {
+            Write-ForensicsLog "  No Fibre Channel HBAs detected" -Level Info
+        }
+        
+        # MPIO paths
+        Write-ForensicsLog "`nMultipath I/O:" -Level Info
+        $mpio = Get-MSDSMAutomaticClaimSettings -ErrorAction SilentlyContinue
+        if ($mpio) {
+            Write-ForensicsLog "  MPIO is configured" -Level Info
+            Get-MSDSMSupportedHW -ErrorAction SilentlyContinue | ForEach-Object {
+                Write-ForensicsLog "    Supported: $($_.VendorId) $($_.ProductId)" -Level Info
+            }
+        } else {
+            Write-ForensicsLog "  MPIO not configured" -Level Info
+        }
+        
+        # ==========================================================================
+        # STORAGE PERFORMANCE BASELINE
+        # ==========================================================================
+        Write-ForensicsLog "`n--- STORAGE PERFORMANCE BASELINE ---" -Level Info
+        
+        if ($Mode -eq 'Deep' -or $Mode -eq 'DiskOnly') {
+            Write-ForensicsLog "Running storage performance baseline tests..." -Level Info
+            
+            $testPath = Join-Path $env:TEMP "storage_baseline_test"
+            New-Item -Path $testPath -ItemType Directory -Force | Out-Null
+            $testFile = Join-Path $testPath "test.dat"
+            
+            try {
+                # Sequential Write Test
+                Write-ForensicsLog "`nSequential Write Test (1GB):" -Level Info
+                $writeTest = Measure-Command {
+                    $buffer = New-Object byte[] (1MB)
+                    $stream = [System.IO.File]::Create($testFile)
+                    for ($i = 0; $i -lt 1024; $i++) {
+                        $stream.Write($buffer, 0, $buffer.Length)
+                    }
+                    $stream.Flush()
+                    $stream.Close()
+                }
+                $writeMBps = [math]::Round(1024 / $writeTest.TotalSeconds, 2)
+                Write-ForensicsLog "  Write Speed: $writeMBps MB/s" -Level Info
+                
+                # Sequential Read Test
+                Write-ForensicsLog "`nSequential Read Test (1GB):" -Level Info
+                # Clear cache
+                [System.GC]::Collect()
+                
+                $readTest = Measure-Command {
+                    $buffer = New-Object byte[] (1MB)
+                    $stream = [System.IO.File]::OpenRead($testFile)
+                    while ($stream.Read($buffer, 0, $buffer.Length) -gt 0) { }
+                    $stream.Close()
+                }
+                $readMBps = [math]::Round(1024 / $readTest.TotalSeconds, 2)
+                Write-ForensicsLog "  Read Speed: $readMBps MB/s" -Level Info
+                
+                # Random I/O Test (4K blocks)
+                Write-ForensicsLog "`nRandom 4K I/O Test:" -Level Info
+                $random = New-Object Random
+                $smallBuffer = New-Object byte[] 4096
+                
+                $randomReadTest = Measure-Command {
+                    $stream = [System.IO.File]::OpenRead($testFile)
+                    for ($i = 0; $i -lt 10000; $i++) {
+                        $position = $random.Next(0, [int]($stream.Length / 4096)) * 4096
+                        $stream.Seek($position, [System.IO.SeekOrigin]::Begin) | Out-Null
+                        $stream.Read($smallBuffer, 0, 4096) | Out-Null
+                    }
+                    $stream.Close()
+                }
+                $randomIOPS = [math]::Round(10000 / $randomReadTest.TotalSeconds, 0)
+                Write-ForensicsLog "  Random 4K Read IOPS: $randomIOPS" -Level Info
+                
+            } finally {
+                # Cleanup
+                Remove-Item -Path $testPath -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        } else {
+            Write-ForensicsLog "  Run with -Mode Deep or -Mode DiskOnly for performance baseline tests" -Level Info
+        }
+        
+        $script:DiagnosticData['StorageProfile'] = @{
+            PhysicalDisks = $physicalDisks
+            NVMeCount = $nvmeCount
+            SSDCount = $ssdCount
+            HDDCount = $hddCount
+        }
+        
+        Write-ForensicsLog "`nStorage profiling completed" -Level Success
+        
+    } catch {
+        Write-ForensicsLog "Error during storage profiling: $_" -Level Error
+    }
+}
+
+#endregion
+
 #region Database Forensics
 
 Function Get-DatabaseForensics {
@@ -1430,6 +2073,7 @@ Function Invoke-Forensics {
         'Standard' {
             Get-PerformanceCounters
             Test-DiskPerformance
+            Get-StorageProfile
             Get-CPUForensics
             Get-MemoryForensics
             Get-DatabaseForensics
@@ -1437,6 +2081,7 @@ Function Invoke-Forensics {
         'Deep' {
             Get-PerformanceCounters
             Test-DiskPerformance
+            Get-StorageProfile
             Get-CPUForensics
             Get-MemoryForensics
             Get-DatabaseForensics
@@ -1444,6 +2089,7 @@ Function Invoke-Forensics {
         'DiskOnly' {
             Get-PerformanceCounters
             Test-DiskPerformance
+            Get-StorageProfile
         }
         'CPUOnly' {
             Get-PerformanceCounters
