@@ -772,6 +772,109 @@ Function Get-StorageProfile {
             Write-ForensicsLog "  RAW Disks: $rawCount (uninitialized)" -Level Warning
         }
         
+        # ==========================================================================
+        # PARTITION ALIGNMENT ANALYSIS
+        # ==========================================================================
+        Write-ForensicsLog "`n--- PARTITION ALIGNMENT ANALYSIS ---" -Level Info
+        Write-ForensicsLog "Checking for 4K alignment (critical for SSD/SAN performance)..." -Level Info
+        
+        $alignedCount = 0
+        $misalignedCount = 0
+        $misalignedPartitions = @()
+        
+        # Get all partitions with their offsets
+        $partitions = Get-Partition -ErrorAction SilentlyContinue
+        
+        foreach ($partition in $partitions) {
+            if ($partition.Offset -gt 0) {
+                $diskNumber = $partition.DiskNumber
+                $partNumber = $partition.PartitionNumber
+                $offsetBytes = $partition.Offset
+                $offsetKB = $offsetBytes / 1024
+                $offsetSectors = $offsetBytes / 512
+                
+                # Check alignment to 4K (4096 bytes)
+                # A partition is properly aligned if its offset is divisible by 4096
+                $isAligned4K = ($offsetBytes % 4096) -eq 0
+                
+                # Also check alignment to 1MB (1048576 bytes) - recommended for SSDs and SANs
+                $isAligned1MB = ($offsetBytes % 1048576) -eq 0
+                
+                # Get the disk to determine if it's SSD or SAN
+                $disk = Get-Disk -Number $diskNumber -ErrorAction SilentlyContinue
+                $isSSD = $false
+                $isSAN = $false
+                
+                if ($disk) {
+                    # Check if SSD
+                    $physDisk = Get-PhysicalDisk | Where-Object { $_.DeviceId -eq $diskNumber } -ErrorAction SilentlyContinue
+                    if ($physDisk -and $physDisk.MediaType -eq "SSD") {
+                        $isSSD = $true
+                    }
+                    
+                    # Check if SAN (iSCSI or FC)
+                    if ($disk.BusType -in @("iSCSI", "Fibre Channel", "SAS")) {
+                        $isSAN = $true
+                    }
+                }
+                
+                # Get volume letter for this partition
+                $volume = Get-Volume -Partition $partition -ErrorAction SilentlyContinue
+                $driveLetter = if ($volume.DriveLetter) { "$($volume.DriveLetter):" } else { "No Letter" }
+                
+                if ($isAligned4K) {
+                    $alignedCount++
+                    $alignStatus = "ALIGNED"
+                    if ($isAligned1MB) {
+                        $alignStatus = "ALIGNED (1MB boundary - optimal)"
+                    }
+                    Write-ForensicsLog "  Disk $diskNumber Partition $partNumber ($driveLetter): $alignStatus - Offset: ${offsetKB}KB ($offsetSectors sectors)" -Level Info
+                } else {
+                    $misalignedCount++
+                    $severity = "Medium"
+                    
+                    # Higher severity for SSDs and SANs
+                    if ($isSSD -or $isSAN) {
+                        $severity = "High"
+                    }
+                    
+                    $diskType = if ($isSSD) { "SSD" } elseif ($isSAN) { "SAN" } else { "HDD" }
+                    
+                    Write-ForensicsLog "  Disk $diskNumber Partition $partNumber ($driveLetter): MISALIGNED - Offset: ${offsetKB}KB ($offsetSectors sectors) [$diskType]" -Level Warning
+                    
+                    $misalignedPartitions += @{
+                        Disk = $diskNumber
+                        Partition = $partNumber
+                        DriveLetter = $driveLetter
+                        OffsetBytes = $offsetBytes
+                        OffsetKB = $offsetKB
+                        DiskType = $diskType
+                    }
+                    
+                    # Log bottleneck
+                    $perfImpact = if ($isSSD) { "30-50% performance loss" } elseif ($isSAN) { "30-50% performance loss, increased SAN load" } else { "10-20% performance loss" }
+                    Add-Bottleneck -Category "Storage" -Issue "Misaligned partition: Disk $diskNumber Partition $partNumber ($driveLetter)" -CurrentValue "Offset ${offsetKB}KB" -Threshold "4K aligned (4096 bytes)" -Severity $severity
+                }
+            }
+        }
+        
+        Write-ForensicsLog "`nPartition Alignment Summary:" -Level Info
+        Write-ForensicsLog "  Aligned partitions: $alignedCount" -Level Info
+        if ($misalignedCount -gt 0) {
+            Write-ForensicsLog "  Misaligned partitions: $misalignedCount (PERFORMANCE IMPACT)" -Level Warning
+            Write-ForensicsLog "`n  Misalignment Impact:" -Level Warning
+            Write-ForensicsLog "    - SSD/NVMe: 30-50% performance degradation" -Level Warning
+            Write-ForensicsLog "    - SAN (iSCSI/FC): 30-50% degradation + increased backend I/O" -Level Warning
+            Write-ForensicsLog "    - HDD: 10-20% degradation (extra read-modify-write cycles)" -Level Warning
+            Write-ForensicsLog "`n  Remediation:" -Level Info
+            Write-ForensicsLog "    - Backup data and recreate partition with proper alignment" -Level Info
+            Write-ForensicsLog "    - Use 'diskpart' with 'align=1024' (1MB alignment recommended)" -Level Info
+            Write-ForensicsLog "    - Windows 7+ and Server 2008 R2+ auto-align to 1MB by default" -Level Info
+            Write-ForensicsLog "    - Legacy systems (XP/2003) often create misaligned partitions" -Level Info
+        } else {
+            Write-ForensicsLog "  All partitions are properly aligned" -Level Info
+        }
+        
         # Check boot mode (UEFI vs Legacy BIOS)
         Write-ForensicsLog "`nBoot Configuration:" -Level Info
         try {

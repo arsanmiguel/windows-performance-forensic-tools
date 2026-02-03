@@ -97,6 +97,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
     </details>
 - **Comprehensive storage profiling:**
   - Partition scheme analysis (GPT vs MBR vs RAW)
+  - **Partition alignment analysis** (4K/1MB alignment check for SSD/SAN performance)
   - Partition type detection (ESP, MSR, Recovery, Basic, LDM, Storage Spaces)
   - Boot configuration (UEFI vs Legacy BIOS, Secure Boot status)
   - **Dynamic disk analysis** (mirrored, striped, spanned, RAID-5 volumes)
@@ -322,6 +323,7 @@ The tool automatically detects:
 <details>
 <summary><strong>Storage Issues</strong></summary>
 
+- **Misaligned partitions** (4K alignment check - 30-50% perf loss on SSD/SAN)
 - **MBR partition on >2TB disk** (only 2TB usable - data loss risk)
 - **Degraded dynamic disk volumes** (mirrored/RAID-5 with failed member)
 - **Dynamic disk health issues** (status not OK)
@@ -499,6 +501,17 @@ The script uses native Windows tools and cmdlets for storage analysis:
 - **GPT** (GUID Partition Table) - Modern, UEFI, supports >2TB
 - **MBR** (Master Boot Record) - Legacy, BIOS, 2TB limit
 - **RAW** - Uninitialized disk (warning generated)
+
+**Partition Alignment Analysis:**
+- Checks all partitions for 4K (4096 byte) alignment
+- Identifies 1MB alignment (optimal for SSD/SAN)
+- Calculates offset in KB and sectors
+- Severity based on storage type:
+  - **SSD/NVMe**: High severity (30-50% performance loss)
+  - **SAN (iSCSI/FC)**: High severity (30-50% loss + backend I/O amplification)
+  - **HDD**: Medium severity (10-20% loss from read-modify-write)
+- Common cause: Partitions created on Windows XP/Server 2003 (63-sector offset)
+- Windows Vista+ and Server 2008+ auto-align to 1MB by default
 
 **Partition Type Detection:**
 - EFI System Partition (ESP)
