@@ -31,8 +31,8 @@ A comprehensive PowerShell-based diagnostic tool for Windows servers that automa
 
 1. **Clone the repository:**
 ```powershell
-git clone https://github.com/arsanmiguel/windows-performance-forensic-tools.git
-cd windows-performance-forensic-tools
+git clone https://github.com/arsanmiguel/windows-forensics.git
+cd windows-forensics
 ```
 
 2. **Set execution policy (if needed):**
