@@ -3,7 +3,7 @@
 <a id="overview"></a>
 ## Overview
 
-A comprehensive PowerShell-based diagnostic tool for Windows servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. Originally created for AWS DMS migration troubleshooting—run on your SOURCE DATABASE SERVER. Now useful for any Windows performance troubleshooting; run on the machine you want to diagnose and optionally open an AWS Support case with full details attached.
+A comprehensive PowerShell-based diagnostic tool for Windows servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. Originally created for AWS DMS migration troubleshooting; run on your SOURCE DATABASE SERVER. Now useful for any Windows performance troubleshooting; run on the machine you want to diagnose and optionally open an AWS Support case with full details attached.
 
 Key Features:
 
@@ -16,7 +16,7 @@ Key Features:
 - Automatic AWS Support case creation with diagnostic data
 - Works on Windows Server 2012 R2 or later; works across hyperscalers and on-premises
 
-TL;DR — Run it now
+TL;DR - Run it now
 ```powershell
 git clone https://github.com/arsanmiguel/win-forensics.git
 cd win-forensics
@@ -534,12 +534,12 @@ General Guidelines:
 <details>
 <summary><strong>Version History</strong></summary>
 
-- v2.2 (February 2026) – README overhaul
+- v2.2 (February 2026) - README overhaul
   - Structure and flow aligned with linux-forensics/unix-forensics: table of contents (Contents) with anchors, TL;DR, Quick links
   - Replaced long "Available Tools" section with a short blurb; Use Cases and What Bottlenecks are subsections of Examples
   - Section order: Troubleshooting before Configuration; Important Notes & Performance and Version History are collapsible
   - Removed emojis; slimmed Key Features; consistent section headers and styling; removed What's Included
-- v2.1 (February 2026) – Storage profiling
+- v2.1 (February 2026) - Storage profiling
   - Partition scheme analysis (GPT/MBR/RAW with warnings)
   - Partition type detection (ESP, MSR, Recovery, LDM, Storage Spaces)
   - Boot configuration (UEFI vs Legacy BIOS, Secure Boot)
@@ -549,9 +549,9 @@ General Guidelines:
   - SMART/reliability monitoring
   - SAN/iSCSI/MPIO detection
   - AWS EBS and Azure disk optimization recommendations
-- v2.0 (January 2026) – Complete rewrite with unified forensics tool, automatic bottleneck detection, CPU/Memory forensics
-- v1.5 (January 2026) – AWS Support API integration
-- v1.0 (February 2022) – Initial release
+- v2.0 (January 2026) - Complete rewrite with unified forensics tool, automatic bottleneck detection, CPU/Memory forensics
+- v1.5 (January 2026) - AWS Support API integration
+- v1.0 (February 2022) - Initial release
 
 </details>
 
